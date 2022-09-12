@@ -1,11 +1,11 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use ui_spriteor::{border_box_quarter, border_box_raw, BoxSettings};
+use ui_spriteor::{border_box_quarter, border_box_quarter_b, border_box_raw, BoxSettings};
 
 fn border_box_benchmark(c: &mut Criterion) {
-  c.bench_function("border_box_raw_128by256", |b| {
+  c.bench_function("border_box_raw_512by512", |b| {
     let settings = black_box(BoxSettings {
-      width: 128,
-      height: 256,
+      width: 512,
+      height: 512,
       ..Default::default()
     });
     b.iter(|| border_box_raw(black_box(&settings)))
@@ -18,22 +18,33 @@ fn border_box_benchmark(c: &mut Criterion) {
     });
     b.iter(|| border_box_quarter(&settings))
   });
-  c.bench_function("border_box_raw_512by512", |b| {
+  c.bench_function("mirroring_b_512by512", |b| {
     let settings = black_box(BoxSettings {
       width: 512,
       height: 512,
       ..Default::default()
     });
-    b.iter(|| border_box_raw(black_box(&settings)))
+    b.iter(|| border_box_quarter_b(&settings))
   });
-  c.bench_function("mirroring_128by256", |b| {
-    let settings = black_box(BoxSettings {
-      width: 128,
-      height: 256,
-      ..Default::default()
-    });
-    b.iter(|| border_box_quarter(&settings))
-  });
+
+  //128x256
+
+  // c.bench_function("border_box_raw_128by256", |b| {
+  //   let settings = black_box(BoxSettings {
+  //     width: 128,
+  //     height: 256,
+  //     ..Default::default()
+  //   });
+  //   b.iter(|| border_box_raw(black_box(&settings)))
+  // });
+  // c.bench_function("mirroring_128by256", |b| {
+  //   let settings = black_box(BoxSettings {
+  //     width: 128,
+  //     height: 256,
+  //     ..Default::default()
+  //   });
+  //   b.iter(|| border_box_quarter(&settings, 0))
+  // });
 }
 
 criterion_group!(benches, border_box_benchmark);
