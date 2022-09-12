@@ -8,14 +8,14 @@ pub struct BoxSettings {
   pub height: u16,
   /** Default: 3. Is run through corner_radius.min(width/2).min(height/2). */
   pub corner_radius: u16,
-  pub border_thickness: u16,
+  /** Default: 1. */
+  pub border_thickness: Option<u16>,
   /** RGBA values. Default: [255, 255, 255, 255]. */
   pub border_color: Option<[u8; 4]>,
   /** RGBA values. Default: [200, 200, 200, 255]. */
   pub inside_color: Option<[u8; 4]>,
   /** RGBA values. Default: [0,0,0,0]. */
   pub outside_color: Option<[u8; 4]>,
-  /** Not yet implemented. */
   pub margin: Option<u16>,
 }
 impl Default for BoxSettings {
@@ -24,7 +24,7 @@ impl Default for BoxSettings {
       width: 32,
       height: 32,
       corner_radius: 3,
-      border_thickness: 1,
+      border_thickness: None,
       border_color: None,
       inside_color: None,
       outside_color: None,
@@ -54,21 +54,27 @@ impl PrivBoxSettings {
       .corner_radius
       .min((settings.width / 2) - 1)
       .min((settings.height / 2) - 1);
+
+    let margin = settings.margin.unwrap_or(0);
+
     PrivBoxSettings {
       width: settings.width,
       height: settings.height,
       radius,
-      thickness: settings.border_thickness,
+      thickness: settings.border_thickness.unwrap_or(1),
       corner_c: [
-        (radius, radius),
-        (settings.width - radius - 1, radius),
-        (radius, settings.height - radius - 1),
-        (settings.width - radius - 1, settings.height - radius - 1),
+        (radius + margin, radius + margin),
+        (settings.width - radius - 1 - margin, radius + margin),
+        (radius + margin, settings.height - radius - 1 - margin),
+        (
+          settings.width - radius - 1 - margin,
+          settings.height - radius - 1 - margin,
+        ),
       ],
       border_color: settings.border_color.unwrap_or([255, 255, 255, 255]),
       inside_color: settings.inside_color.unwrap_or([200, 200, 200, 255]),
       outside_color: settings.outside_color.unwrap_or([0, 0, 0, 0]),
-      margin: settings.margin.unwrap_or(0),
+      margin,
     }
   }
 }
@@ -139,29 +145,41 @@ pub fn border_box_quarter_b(settings: &BoxSettings) -> Vec<u8> {
     }
   }
 
-  for x in s.radius..s.width - 1 {
-    set_pixel(
-      &mut pixels,
-      xy_to_i(&s.width, &x, &s.margin),
-      &s.border_color,
-    );
-    set_pixel(
-      &mut pixels,
-      xy_to_i(&s.width, &x, &(s.height - s.margin - 1)),
-      &s.border_color,
-    );
+  for x in s.radius..s.width {
+    for y_offset in 0..s.margin + s.thickness {
+      set_pixel(
+        &mut pixels,
+        xy_to_i(&s.width, &x, &y_offset),
+        &if y_offset < s.margin {
+          s.outside_color
+        } else {
+          s.border_color
+        },
+      );
+      // set_pixel(
+      //   &mut pixels,
+      //   xy_to_i(&s.width, &x, &(s.height - s.margin - 1 - y_offset)),
+      //   &s.border_color,
+      // );
+    }
   }
-  for y in s.radius..s.height - s.radius - 1 {
-    set_pixel(
-      &mut pixels,
-      xy_to_i(&s.width, &s.margin, &y),
-      &s.border_color,
-    );
-    set_pixel(
-      &mut pixels,
-      xy_to_i(&s.width, &(s.height - s.margin - 1), &y),
-      &s.border_color,
-    );
+  for y in s.radius..s.height {
+    for x_offset in 0..s.margin + s.thickness {
+      set_pixel(
+        &mut pixels,
+        xy_to_i(&s.width, &x_offset, &y),
+        &if x_offset < s.margin {
+          s.outside_color
+        } else {
+          s.border_color
+        },
+      );
+      // set_pixel(
+      //   &mut pixels,
+      //   xy_to_i(&s.width, &(s.height - s.margin - 1 - x_offset), &y),
+      //   &s.border_color,
+      // );
+    }
   }
 
   s.width = settings.width;
@@ -205,29 +223,34 @@ pub fn border_box_raw(settings: &BoxSettings) -> Vec<u8> {
       check_and_set_pixel(&mut pixels, &s, x, y, 3);
     }
   }
+
   for x in s.radius..s.width - s.radius - 1 {
-    set_pixel(
-      &mut pixels,
-      xy_to_i(&s.width, &x, &s.margin),
-      &s.border_color,
-    );
-    set_pixel(
-      &mut pixels,
-      xy_to_i(&s.width, &x, &(s.height - s.margin - 1)),
-      &s.border_color,
-    );
+    for y_offset in 0..s.thickness {
+      set_pixel(
+        &mut pixels,
+        xy_to_i(&s.width, &x, &(s.margin + y_offset)),
+        &s.border_color,
+      );
+      set_pixel(
+        &mut pixels,
+        xy_to_i(&s.width, &x, &(s.height - s.margin - 1 - y_offset)),
+        &s.border_color,
+      );
+    }
   }
   for y in s.radius..s.height - s.radius - 1 {
-    set_pixel(
-      &mut pixels,
-      xy_to_i(&s.width, &s.margin, &y),
-      &s.border_color,
-    );
-    set_pixel(
-      &mut pixels,
-      xy_to_i(&s.width, &(s.height - s.margin - 1), &y),
-      &s.border_color,
-    );
+    for x_offset in 0..s.thickness {
+      set_pixel(
+        &mut pixels,
+        xy_to_i(&s.width, &(s.margin + x_offset), &y),
+        &s.border_color,
+      );
+      set_pixel(
+        &mut pixels,
+        xy_to_i(&s.width, &(s.height - s.margin - 1 - x_offset), &y),
+        &s.border_color,
+      );
+    }
   }
 
   pixels
@@ -236,7 +259,7 @@ pub fn border_box_raw(settings: &BoxSettings) -> Vec<u8> {
 /** Returns an array where every four u8 values represents one pixel in RGBA;
 
  Ex of three pixels with colors RED, GREEN, BLUE:
- ```
+ ```ignore
  [
    255,0,0,255,
    0,255,0,255,
