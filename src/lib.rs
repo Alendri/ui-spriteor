@@ -2,21 +2,22 @@ static DEBUG: bool = false;
 
 #[derive(Clone)]
 pub struct BoxSettings {
-  /** Value must be divisible by 2 and in the range [16, 4096]. Default: 32. */
+  /** Value must be divisible by 2 and in the range [8, 4096]. Default: 32. */
   pub width: u16,
-  /** Value must be divisible by 2 and in the range [16, 4096]. Default: 32. */
+  /** Value must be divisible by 2 and in the range [8, 4096]. Default: 32. */
   pub height: u16,
   /** Default: 3. Is run through corner_radius.min(width/2).min(height/2). */
   pub corner_radius: u16,
   /** Default: 1. */
-  pub border_thickness: Option<u16>,
+  pub border_thickness: u16,
+  /** Default: 0. */
+  pub margin: u16,
   /** RGBA values. Default: [255, 255, 255, 255]. */
   pub border_color: Option<[u8; 4]>,
   /** RGBA values. Default: [200, 200, 200, 255]. */
   pub inside_color: Option<[u8; 4]>,
   /** RGBA values. Default: [0,0,0,0]. */
   pub outside_color: Option<[u8; 4]>,
-  pub margin: Option<u16>,
 }
 impl Default for BoxSettings {
   fn default() -> Self {
@@ -24,15 +25,15 @@ impl Default for BoxSettings {
       width: 32,
       height: 32,
       corner_radius: 3,
-      border_thickness: None,
+      border_thickness: 1,
       border_color: None,
       inside_color: None,
       outside_color: None,
-      margin: None,
+      margin: 0,
     }
   }
 }
-struct PrivBoxSettings {
+struct ExpandedBoxSettings {
   pub width: u16,
   pub height: u16,
   pub radius: u16,
@@ -43,25 +44,34 @@ struct PrivBoxSettings {
   pub outside_color: [u8; 4],
   pub margin: u16,
 }
-impl PrivBoxSettings {
-  fn from_box_settings(settings: &BoxSettings) -> PrivBoxSettings {
+impl ExpandedBoxSettings {
+  fn from_box_settings(settings: &BoxSettings) -> ExpandedBoxSettings {
     if settings.width % 2 != 0 || settings.height % 2 != 0 {
       panic!("Input width and height not divisble by 2.");
     }
+    if settings.height < 8 || settings.height > 4096 || settings.width < 8 || settings.width > 4096
+    {
+      panic!("Invalid sizing, width and height must be in range [16, 4096].")
+    }
 
-    //Ensure radius can never be more than 50%.
+    let margin_max = ((settings.width / 2) - 2).min((settings.height / 2) - 2);
+    let margin = settings.margin.min(margin_max);
+
+    let radius_width_max = ((settings.width as isize / 2) - margin as isize * 2 - 1).max(0) as u16;
+    let radius_height_max =
+      ((settings.height as isize / 2) - margin as isize * 2 - 1).max(0) as u16;
+
+    //Ensure radius is valid.
     let radius = settings
       .corner_radius
-      .min((settings.width / 2) - 1)
-      .min((settings.height / 2) - 1);
+      .min(radius_width_max)
+      .min(radius_height_max);
 
-    let margin = settings.margin.unwrap_or(0);
-
-    PrivBoxSettings {
+    ExpandedBoxSettings {
       width: settings.width,
       height: settings.height,
       radius,
-      thickness: settings.border_thickness.unwrap_or(1),
+      thickness: settings.border_thickness,
       corner_c: [
         (radius + margin, radius + margin),
         (settings.width - radius - 1 - margin, radius + margin),
@@ -80,7 +90,7 @@ impl PrivBoxSettings {
 }
 
 pub fn border_box_quarter(settings: &BoxSettings) -> Vec<u8> {
-  let mut s = PrivBoxSettings::from_box_settings(&settings);
+  let mut s = ExpandedBoxSettings::from_box_settings(&settings);
   s.width = s.width / 2;
   s.height = s.height / 2;
 
@@ -128,7 +138,7 @@ pub fn border_box_quarter(settings: &BoxSettings) -> Vec<u8> {
   mirror(s, pixels)
 }
 pub fn border_box_quarter_b(settings: &BoxSettings) -> Vec<u8> {
-  let mut s = PrivBoxSettings::from_box_settings(&settings);
+  let mut s = ExpandedBoxSettings::from_box_settings(&settings);
   s.width = s.width / 2;
   s.height = s.height / 2;
 
@@ -188,74 +198,6 @@ pub fn border_box_quarter_b(settings: &BoxSettings) -> Vec<u8> {
   mirror_b(s, pixels)
 }
 
-pub fn border_box_raw(settings: &BoxSettings) -> Vec<u8> {
-  let s = PrivBoxSettings::from_box_settings(settings);
-  let mut pixels = vec![0 as u8; s.width as usize * s.height as usize * 4]
-    .iter()
-    .enumerate()
-    .map(|(i, &_x)| s.inside_color[i % 4])
-    .collect();
-
-  //TOP
-  // left
-  for x in 0..s.radius + 1 {
-    for y in 0..s.radius + 1 {
-      check_and_set_pixel(&mut pixels, &s, x, y, 0);
-    }
-  }
-  // right
-  for x in s.width - s.radius - 1..s.width {
-    for y in 0..s.radius + 1 {
-      check_and_set_pixel(&mut pixels, &s, x, y, 1);
-    }
-  }
-
-  //BOTTOM
-  // left
-  for x in 0..s.radius + 1 {
-    for y in s.height - s.radius - 1..s.height {
-      check_and_set_pixel(&mut pixels, &s, x, y, 2);
-    }
-  }
-  // right
-  for x in s.width - s.radius - 1..s.width {
-    for y in s.height - s.radius - 1..s.height {
-      check_and_set_pixel(&mut pixels, &s, x, y, 3);
-    }
-  }
-
-  for x in s.radius..s.width - s.radius - 1 {
-    for y_offset in 0..s.thickness {
-      set_pixel(
-        &mut pixels,
-        xy_to_i(&s.width, &x, &(s.margin + y_offset)),
-        &s.border_color,
-      );
-      set_pixel(
-        &mut pixels,
-        xy_to_i(&s.width, &x, &(s.height - s.margin - 1 - y_offset)),
-        &s.border_color,
-      );
-    }
-  }
-  for y in s.radius..s.height - s.radius - 1 {
-    for x_offset in 0..s.thickness {
-      set_pixel(
-        &mut pixels,
-        xy_to_i(&s.width, &(s.margin + x_offset), &y),
-        &s.border_color,
-      );
-      set_pixel(
-        &mut pixels,
-        xy_to_i(&s.width, &(s.height - s.margin - 1 - x_offset), &y),
-        &s.border_color,
-      );
-    }
-  }
-
-  pixels
-}
-
 /** Returns an array where every four u8 values represents one pixel in RGBA;
 
  Ex of three pixels with colors RED, GREEN, BLUE:
@@ -268,7 +210,7 @@ pub fn border_box_raw(settings: &BoxSettings) -> Vec<u8> {
  ```
 */
 pub fn border_box(width: u16, height: u16, corner_radius: u16) -> Vec<u8> {
-  border_box_raw(&BoxSettings {
+  border_box_quarter_b(&BoxSettings {
     width,
     height,
     corner_radius,
@@ -281,7 +223,13 @@ Check that pixel is inside given distance based on distance to corner radius.
 
 If on border color accordingly, otherwise color outside or inside depending on distance.
 */
-fn check_and_set_pixel(pixels: &mut Vec<u8>, s: &PrivBoxSettings, x: u16, y: u16, corner: usize) {
+fn check_and_set_pixel(
+  pixels: &mut Vec<u8>,
+  s: &ExpandedBoxSettings,
+  x: u16,
+  y: u16,
+  corner: usize,
+) {
   let d = distance(x, y, s.corner_c[corner].0, s.corner_c[corner].1);
   if DEBUG {
     let i = xy_to_i(&s.width, &x, &y);
@@ -338,7 +286,7 @@ fn xy_to_i(width: &u16, x: &u16, y: &u16) -> usize {
 
  Top right, bottom right and bottom left will all have the same value as the first top left in input.
 */
-fn mirror(s: PrivBoxSettings, quarter: Vec<u8>) -> Vec<u8> {
+fn mirror(s: ExpandedBoxSettings, quarter: Vec<u8>) -> Vec<u8> {
   let len = s.width as usize * s.height as usize * 4;
   let mut mirrored = vec![0 as u8; len];
 
@@ -373,7 +321,7 @@ fn mirror(s: PrivBoxSettings, quarter: Vec<u8>) -> Vec<u8> {
   mirrored
 }
 
-fn mirror_b(s: PrivBoxSettings, quarter: Vec<u8>) -> Vec<u8> {
+fn mirror_b(s: ExpandedBoxSettings, quarter: Vec<u8>) -> Vec<u8> {
   let len = s.width as usize * s.height as usize * 4;
   let mut mirrored = vec![0 as u8; len];
 
@@ -423,94 +371,160 @@ mod tests {
 
   #[rustfmt::skip]
   #[test]
-  fn mirror_6by6() {
-    let result = mirror(
-      PrivBoxSettings::from_box_settings(&BoxSettings {
-        width: 6,
-        height: 6,
+  fn mirror_b_16by16() {
+    let result = mirror_b(
+    ExpandedBoxSettings::from_box_settings(&BoxSettings {
+        width: 16,
+        height: 16,
         corner_radius: 2,
         ..Default::default()
       }),
       vec![
-        10, 10, 10, 255,  20, 20, 20, 255,  30, 30, 30, 255,
-        11, 11, 11, 255,  21, 21, 21, 255,  31, 31, 31, 255,
-        12, 12, 12, 255,  22, 22, 22, 255,  32, 32, 32, 255,
+        10, 10, 10, 255,  20, 20, 20, 255,  30, 30, 30, 255,  40, 40, 40, 255,  50, 50, 50, 255,  60, 60, 60, 255,  70, 70, 70, 255,  80, 80, 80, 255,
+        11, 11, 11, 255,  21, 21, 21, 255,  31, 31, 31, 255,  41, 41, 41, 255,  51, 51, 51, 255,  61, 61, 61, 255,  71, 71, 71, 255,  81, 81, 81, 255,
+        12, 12, 12, 255,  22, 22, 22, 255,  32, 32, 32, 255,  42, 42, 42, 255,  52, 52, 52, 255,  62, 62, 62, 255,  72, 72, 72, 255,  82, 82, 82, 255,
+        13, 13, 13, 255,  23, 23, 23, 255,  33, 33, 33, 255,  43, 43, 43, 255,  53, 53, 53, 255,  63, 63, 63, 255,  73, 73, 73, 255,  83, 83, 83, 255,
+        14, 14, 14, 255,  24, 24, 24, 255,  34, 34, 34, 255,  44, 44, 44, 255,  54, 54, 54, 255,  64, 64, 64, 255,  74, 74, 74, 255,  84, 84, 84, 255,
+        15, 15, 15, 255,  25, 25, 25, 255,  35, 35, 35, 255,  45, 45, 45, 255,  55, 55, 55, 255,  65, 65, 65, 255,  75, 75, 75, 255,  85, 85, 85, 255,
+        16, 16, 16, 255,  26, 26, 26, 255,  36, 36, 36, 255,  46, 46, 46, 255,  56, 56, 56, 255,  66, 66, 66, 255,  76, 76, 76, 255,  86, 86, 86, 255,
+        17, 17, 17, 255,  27, 27, 27, 255,  37, 37, 37, 255,  47, 47, 47, 255,  57, 57, 57, 255,  67, 67, 67, 255,  77, 77, 77, 255,  87, 87, 87, 255,
       ],
     );
     assert_eq!(result, vec![
-      10, 10, 10, 255,  20, 20, 20, 255,  30, 30, 30, 255,   30, 30, 30, 255,  20, 20, 20, 255,  10, 10, 10, 255,
-      11, 11, 11, 255,  21, 21, 21, 255,  31, 31, 31, 255,   31, 31, 31, 255,  21, 21, 21, 255,  11, 11, 11, 255,
-      12, 12, 12, 255,  22, 22, 22, 255,  32, 32, 32, 255,   32, 32, 32, 255,  22, 22, 22, 255,  12, 12, 12, 255,
-      12, 12, 12, 255,  22, 22, 22, 255,  32, 32, 32, 255,   32, 32, 32, 255,  22, 22, 22, 255,  12, 12, 12, 255,
-      11, 11, 11, 255,  21, 21, 21, 255,  31, 31, 31, 255,   31, 31, 31, 255,  21, 21, 21, 255,  11, 11, 11, 255,
-      10, 10, 10, 255,  20, 20, 20, 255,  30, 30, 30, 255,   30, 30, 30, 255,  20, 20, 20, 255,  10, 10, 10, 255,
+      10, 10, 10, 255,  20, 20, 20, 255,  30, 30, 30, 255,  40, 40, 40, 255,  50, 50, 50, 255,  60, 60, 60, 255,  70, 70, 70, 255,  80, 80, 80, 255,
+      80, 80, 80, 255,  70, 70, 70, 255,  60, 60, 60, 255,  50, 50, 50, 255,  40, 40, 40, 255,  30, 30, 30, 255,  20, 20, 20, 255,  10, 10, 10, 255,
+
+      11, 11, 11, 255,  21, 21, 21, 255,  31, 31, 31, 255,  41, 41, 41, 255,  51, 51, 51, 255,  61, 61, 61, 255,  71, 71, 71, 255,  81, 81, 81, 255,
+      81, 81, 81, 255,  71, 71, 71, 255,  61, 61, 61, 255,  51, 51, 51, 255,  41, 41, 41, 255,  31, 31, 31, 255,  21, 21, 21, 255,  11, 11, 11, 255,
+
+      12, 12, 12, 255,  22, 22, 22, 255,  32, 32, 32, 255,  42, 42, 42, 255,  52, 52, 52, 255,  62, 62, 62, 255,  72, 72, 72, 255,  82, 82, 82, 255,
+      82, 82, 82, 255,  72, 72, 72, 255,  62, 62, 62, 255,  52, 52, 52, 255,  42, 42, 42, 255,  32, 32, 32, 255,  22, 22, 22, 255,  12, 12, 12, 255,
+
+      13, 13, 13, 255,  23, 23, 23, 255,  33, 33, 33, 255,  43, 43, 43, 255,  53, 53, 53, 255,  63, 63, 63, 255,  73, 73, 73, 255,  83, 83, 83, 255,
+      83, 83, 83, 255,  73, 73, 73, 255,  63, 63, 63, 255,  53, 53, 53, 255,  43, 43, 43, 255,  33, 33, 33, 255,  23, 23, 23, 255,  13, 13, 13, 255,
+
+      14, 14, 14, 255,  24, 24, 24, 255,  34, 34, 34, 255,  44, 44, 44, 255,  54, 54, 54, 255,  64, 64, 64, 255,  74, 74, 74, 255,  84, 84, 84, 255,
+      84, 84, 84, 255,  74, 74, 74, 255,  64, 64, 64, 255,  54, 54, 54, 255,  44, 44, 44, 255,  34, 34, 34, 255,  24, 24, 24, 255,  14, 14, 14, 255,
+
+      15, 15, 15, 255,  25, 25, 25, 255,  35, 35, 35, 255,  45, 45, 45, 255,  55, 55, 55, 255,  65, 65, 65, 255,  75, 75, 75, 255,  85, 85, 85, 255,
+      85, 85, 85, 255,  75, 75, 75, 255,  65, 65, 65, 255,  55, 55, 55, 255,  45, 45, 45, 255,  35, 35, 35, 255,  25, 25, 25, 255,  15, 15, 15, 255,
+
+      16, 16, 16, 255,  26, 26, 26, 255,  36, 36, 36, 255,  46, 46, 46, 255,  56, 56, 56, 255,  66, 66, 66, 255,  76, 76, 76, 255,  86, 86, 86, 255,
+      86, 86, 86, 255,  76, 76, 76, 255,  66, 66, 66, 255,  56, 56, 56, 255,  46, 46, 46, 255,  36, 36, 36, 255,  26, 26, 26, 255,  16, 16, 16, 255,
+
+      17, 17, 17, 255,  27, 27, 27, 255,  37, 37, 37, 255,  47, 47, 47, 255,  57, 57, 57, 255,  67, 67, 67, 255,  77, 77, 77, 255,  87, 87, 87, 255,
+      87, 87, 87, 255,  77, 77, 77, 255,  67, 67, 67, 255,  57, 57, 57, 255,  47, 47, 47, 255,  37, 37, 37, 255,  27, 27, 27, 255,  17, 17, 17, 255,
+
+      //////
+
+      17, 17, 17, 255,  27, 27, 27, 255,  37, 37, 37, 255,  47, 47, 47, 255,  57, 57, 57, 255,  67, 67, 67, 255,  77, 77, 77, 255,  87, 87, 87, 255,
+      87, 87, 87, 255,  77, 77, 77, 255,  67, 67, 67, 255,  57, 57, 57, 255,  47, 47, 47, 255,  37, 37, 37, 255,  27, 27, 27, 255,  17, 17, 17, 255,
+
+      16, 16, 16, 255,  26, 26, 26, 255,  36, 36, 36, 255,  46, 46, 46, 255,  56, 56, 56, 255,  66, 66, 66, 255,  76, 76, 76, 255,  86, 86, 86, 255,
+      86, 86, 86, 255,  76, 76, 76, 255,  66, 66, 66, 255,  56, 56, 56, 255,  46, 46, 46, 255,  36, 36, 36, 255,  26, 26, 26, 255,  16, 16, 16, 255,
+
+      15, 15, 15, 255,  25, 25, 25, 255,  35, 35, 35, 255,  45, 45, 45, 255,  55, 55, 55, 255,  65, 65, 65, 255,  75, 75, 75, 255,  85, 85, 85, 255,
+      85, 85, 85, 255,  75, 75, 75, 255,  65, 65, 65, 255,  55, 55, 55, 255,  45, 45, 45, 255,  35, 35, 35, 255,  25, 25, 25, 255,  15, 15, 15, 255,
+
+      14, 14, 14, 255,  24, 24, 24, 255,  34, 34, 34, 255,  44, 44, 44, 255,  54, 54, 54, 255,  64, 64, 64, 255,  74, 74, 74, 255,  84, 84, 84, 255,
+      84, 84, 84, 255,  74, 74, 74, 255,  64, 64, 64, 255,  54, 54, 54, 255,  44, 44, 44, 255,  34, 34, 34, 255,  24, 24, 24, 255,  14, 14, 14, 255,
+
+      13, 13, 13, 255,  23, 23, 23, 255,  33, 33, 33, 255,  43, 43, 43, 255,  53, 53, 53, 255,  63, 63, 63, 255,  73, 73, 73, 255,  83, 83, 83, 255,
+      83, 83, 83, 255,  73, 73, 73, 255,  63, 63, 63, 255,  53, 53, 53, 255,  43, 43, 43, 255,  33, 33, 33, 255,  23, 23, 23, 255,  13, 13, 13, 255,
+
+      12, 12, 12, 255,  22, 22, 22, 255,  32, 32, 32, 255,  42, 42, 42, 255,  52, 52, 52, 255,  62, 62, 62, 255,  72, 72, 72, 255,  82, 82, 82, 255,
+      82, 82, 82, 255,  72, 72, 72, 255,  62, 62, 62, 255,  52, 52, 52, 255,  42, 42, 42, 255,  32, 32, 32, 255,  22, 22, 22, 255,  12, 12, 12, 255,
+
+      11, 11, 11, 255,  21, 21, 21, 255,  31, 31, 31, 255,  41, 41, 41, 255,  51, 51, 51, 255,  61, 61, 61, 255,  71, 71, 71, 255,  81, 81, 81, 255,
+      81, 81, 81, 255,  71, 71, 71, 255,  61, 61, 61, 255,  51, 51, 51, 255,  41, 41, 41, 255,  31, 31, 31, 255,  21, 21, 21, 255,  11, 11, 11, 255,
+
+      10, 10, 10, 255,  20, 20, 20, 255,  30, 30, 30, 255,  40, 40, 40, 255,  50, 50, 50, 255,  60, 60, 60, 255,  70, 70, 70, 255,  80, 80, 80, 255,
+      80, 80, 80, 255,  70, 70, 70, 255,  60, 60, 60, 255,  50, 50, 50, 255,  40, 40, 40, 255,  30, 30, 30, 255,  20, 20, 20, 255,  10, 10, 10, 255
     ]);
   }
 
   #[rustfmt::skip]
   #[test]
-  fn mirror2_6by6() {
-    let result = mirror_b(
-    PrivBoxSettings::from_box_settings(&BoxSettings {
-        width: 6,
-        height: 6,
-        corner_radius: 2,
-        ..Default::default()
-      }),
-      vec![
-        10, 10, 10, 255,  20, 20, 20, 255,  30, 30, 30, 255,
-        11, 11, 11, 255,  21, 21, 21, 255,  31, 31, 31, 255,
-        12, 12, 12, 255,  22, 22, 22, 255,  32, 32, 32, 255,
-      ],
-    );
-    assert_eq!(result, vec![
-      10, 10, 10, 255,  20, 20, 20, 255,  30, 30, 30, 255,   30, 30, 30, 255,  20, 20, 20, 255,  10, 10, 10, 255,
-      11, 11, 11, 255,  21, 21, 21, 255,  31, 31, 31, 255,   31, 31, 31, 255,  21, 21, 21, 255,  11, 11, 11, 255,
-      12, 12, 12, 255,  22, 22, 22, 255,  32, 32, 32, 255,   32, 32, 32, 255,  22, 22, 22, 255,  12, 12, 12, 255,
-      12, 12, 12, 255,  22, 22, 22, 255,  32, 32, 32, 255,   32, 32, 32, 255,  22, 22, 22, 255,  12, 12, 12, 255,
-      11, 11, 11, 255,  21, 21, 21, 255,  31, 31, 31, 255,   31, 31, 31, 255,  21, 21, 21, 255,  11, 11, 11, 255,
-      10, 10, 10, 255,  20, 20, 20, 255,  30, 30, 30, 255,   30, 30, 30, 255,  20, 20, 20, 255,  10, 10, 10, 255,
-    ]);
-  }
-  #[rustfmt::skip]
-  #[test]
-  fn border_box_quarter_6by6() {
-    let result = border_box_quarter(
+  fn border_box_quarter_8by8() {
+    let result = border_box_quarter_b(
       &BoxSettings {
-        width: 6,
-        height: 6,
+        width: 8,
+        height: 8,
         corner_radius: 2,
         ..Default::default()
       });
     assert_eq!(result, vec![
-      0, 0, 0, 0,          0, 0, 0, 0,          255, 255, 255, 255,    255, 255, 255, 255,  0, 0, 0, 0,          0, 0, 0, 0,
-      0, 0, 0, 0,          255, 255, 255, 255,  255, 255, 255, 255,    255, 255, 255, 255,  255, 255, 255, 255,  0, 0, 0, 0,
-      255, 255, 255, 255,  255, 255, 255, 255,  200, 200, 200, 255,    200, 200, 200, 255,  255, 255, 255, 255,  255, 255, 255, 255,
-      255, 255, 255, 255,  255, 255, 255, 255,  200, 200, 200, 255,    200, 200, 200, 255,  255, 255, 255, 255,  255, 255, 255, 255,
-      0, 0, 0, 0,          255, 255, 255, 255,  255, 255, 255, 255,    255, 255, 255, 255,  255, 255, 255, 255,  0, 0, 0, 0,
-      0, 0, 0, 0,          0, 0, 0, 0,          255, 255, 255, 255,    255, 255, 255, 255,  0, 0, 0, 0,          0, 0, 0, 0
+      0, 0, 0, 0,          0, 0, 0, 0,          255, 255, 255, 255,  255, 255, 255, 255,    255, 255, 255, 255,  255, 255, 255, 255,  0, 0, 0, 0,          0, 0, 0, 0,
+      0, 0, 0, 0,          255, 255, 255, 255,  255, 255, 255, 255,  200, 200, 200, 255,    200, 200, 200, 255,  255, 255, 255, 255,  255, 255, 255, 255,  0, 0, 0, 0,
+      255, 255, 255, 255,  255, 255, 255, 255,  200, 200, 200, 255,  200, 200, 200, 255,    200, 200, 200, 255,  200, 200, 200, 255,  255, 255, 255, 255,  255, 255, 255, 255,
+      255, 255, 255, 255,  200, 200, 200, 255,  200, 200, 200, 255,  200, 200, 200, 255,    200, 200, 200, 255,  200, 200, 200, 255,  200, 200, 200, 255,  255, 255, 255, 255,
+      255, 255, 255, 255,  200, 200, 200, 255,  200, 200, 200, 255,  200, 200, 200, 255,    200, 200, 200, 255,  200, 200, 200, 255,  200, 200, 200, 255,  255, 255, 255, 255,
+      255, 255, 255, 255,  255, 255, 255, 255,  200, 200, 200, 255,  200, 200, 200, 255,    200, 200, 200, 255,  200, 200, 200, 255,  255, 255, 255, 255,  255, 255, 255, 255,
+      0, 0, 0, 0,          255, 255, 255, 255,  255, 255, 255, 255,  200, 200, 200, 255,    200, 200, 200, 255,  255, 255, 255, 255,  255, 255, 255, 255,  0, 0, 0, 0,
+      0, 0, 0, 0,          0, 0, 0, 0,          255, 255, 255, 255,  255, 255, 255, 255,    255, 255, 255, 255,  255, 255, 255, 255,  0, 0, 0, 0,          0, 0, 0, 0
     ]);
   }
 
+  //
+  //
+  //Tests for invalid sizing input.
+  //
   #[test]
   #[should_panic]
   fn panic_on_invalid_width() {
-    PrivBoxSettings::from_box_settings(&BoxSettings {
-      width: 15,
+    ExpandedBoxSettings::from_box_settings(&BoxSettings {
+      width: 33,
       ..Default::default()
     });
   }
   #[test]
   #[should_panic]
   fn panic_on_invalid_height() {
-    PrivBoxSettings::from_box_settings(&BoxSettings {
+    ExpandedBoxSettings::from_box_settings(&BoxSettings {
+      width: 33,
+      ..Default::default()
+    });
+  }
+  #[test]
+  #[should_panic]
+  fn panic_on_too_small_width() {
+    ExpandedBoxSettings::from_box_settings(&BoxSettings {
       width: 15,
       ..Default::default()
     });
   }
   #[test]
+  #[should_panic]
+  fn panic_on_too_large_width() {
+    ExpandedBoxSettings::from_box_settings(&BoxSettings {
+      width: 5000,
+      ..Default::default()
+    });
+  }
+  #[test]
+  #[should_panic]
+  fn panic_on_too_small_height() {
+    ExpandedBoxSettings::from_box_settings(&BoxSettings {
+      width: 15,
+      ..Default::default()
+    });
+  }
+  #[test]
+  #[should_panic]
+  fn panic_on_too_large_height() {
+    ExpandedBoxSettings::from_box_settings(&BoxSettings {
+      width: 5000,
+      ..Default::default()
+    });
+  }
+
+  //
+  //
+  //Test defaulting box settings.
+  //
+  #[test]
   fn should_correct_radius_larger_than_half_width() {
-    let result = PrivBoxSettings::from_box_settings(&BoxSettings {
+    let result = ExpandedBoxSettings::from_box_settings(&BoxSettings {
       width: 32,
       corner_radius: 32,
       ..Default::default()
@@ -519,14 +533,47 @@ mod tests {
   }
   #[test]
   fn should_correct_radius_larger_than_half_height() {
-    let result = PrivBoxSettings::from_box_settings(&BoxSettings {
+    let result = ExpandedBoxSettings::from_box_settings(&BoxSettings {
       height: 16,
       corner_radius: 32,
       ..Default::default()
     });
     assert_eq!(result.radius, 7);
   }
+  #[test]
+  fn should_correct_margin_larger_than_half_width() {
+    let result = ExpandedBoxSettings::from_box_settings(&BoxSettings {
+      width: 32,
+      margin: 32,
+      ..Default::default()
+    });
+    assert_eq!(result.margin, 14);
+  }
+  #[test]
+  fn should_correct_margin_larger_than_half_height() {
+    let result = ExpandedBoxSettings::from_box_settings(&BoxSettings {
+      height: 32,
+      margin: 32,
+      ..Default::default()
+    });
+    assert_eq!(result.margin, 14);
+  }
+  #[test]
+  fn should_correct_radius_if_margin_squeezes_it() {
+    let result = ExpandedBoxSettings::from_box_settings(&BoxSettings {
+      height: 128,
+      width: 128,
+      margin: 64,
+      corner_radius: 12,
+      ..Default::default()
+    });
+    assert_eq!(result.radius, 0);
+  }
 
+  //
+  //
+  //Tests for distance calculations.
+  //
   #[test]
   fn distance_0() {
     let result = distance(0, 0, 0, 0);
@@ -551,44 +598,5 @@ mod tests {
   fn xy_to_index() {
     let result = xy_to_i(&10, &0, &1);
     assert_eq!(result, 10);
-  }
-
-  #[test]
-  fn border_box_2_radius() {
-    let result = border_box_raw(&BoxSettings {
-      width: 8,
-      height: 8,
-      corner_radius: 2,
-      ..Default::default()
-    });
-    assert_eq!(
-      result,
-      vec![
-        0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255,
-        200, 200, 200, 255, 200, 200, 200, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0,
-        255, 255, 255, 255, 255, 255, 255, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200,
-        200, 255, 200, 200, 200, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200,
-        200, 255, 200, 200, 200, 255, 255, 255, 255, 255, 255, 255, 255, 255, 200, 200, 200, 255,
-        200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 200, 200,
-        200, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 200, 200, 200, 255,
-        200, 200, 200, 255, 200, 200, 200, 255, 200, 200, 200, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 200, 200, 200, 255, 200, 200,
-        200, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0,
-        0, 0, 0
-      ]
-    );
-  }
-  #[test]
-  fn border_box_2_radius_128by128() {
-    let result = border_box_raw(&BoxSettings {
-      width: 128,
-      height: 128,
-      corner_radius: 8,
-      ..Default::default()
-    });
-    assert_eq!(result.len(), 65536);
   }
 }
