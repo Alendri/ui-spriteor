@@ -1,3 +1,6 @@
+mod maths;
+mod patterns;
+
 static DEBUG: bool = false;
 
 #[derive(Clone)]
@@ -33,7 +36,7 @@ impl Default for BoxSettings {
     }
   }
 }
-struct ExpandedBoxSettings {
+pub(crate) struct ExpandedBoxSettings {
   pub width: u16,
   pub height: u16,
   pub radius: u16,
