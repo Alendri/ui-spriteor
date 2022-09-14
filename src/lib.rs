@@ -1,9 +1,24 @@
+use maths::distance_u16;
+
+mod debug;
 mod maths;
 mod patterns;
 
 static DEBUG: bool = false;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
+pub enum FillPattern {
+  PolygonFillSettings(PolygonFillSettings),
+}
+
+#[derive(Debug, Clone)]
+pub struct PolygonFillSettings {
+  pub x_count: u16,
+  pub y_count: u16,
+  pub resolution: u8,
+}
+
+#[derive(Debug, Clone)]
 pub struct BoxSettings {
   /** Value must be divisible by 2 and in the range [8, 4096]. Default: 32. */
   pub width: u16,
@@ -21,6 +36,7 @@ pub struct BoxSettings {
   pub inside_color: Option<[u8; 4]>,
   /** RGBA values. Default: [0,0,0,0]. */
   pub outside_color: Option<[u8; 4]>,
+  pub fill: Option<FillPattern>,
 }
 impl Default for BoxSettings {
   fn default() -> Self {
@@ -33,19 +49,26 @@ impl Default for BoxSettings {
       inside_color: None,
       outside_color: None,
       margin: 0,
+      fill: None,
     }
   }
 }
 pub(crate) struct ExpandedBoxSettings {
   pub width: u16,
+  pub h_width: u16,
   pub height: u16,
+  pub h_height: u16,
   pub radius: u16,
   pub thickness: u16,
+  pub margin: u16,
+  pub inside_width: u16,
+  pub h_inside_width: u16,
+  pub inside_height: u16,
+  pub h_inside_height: u16,
   pub corner_c: [(u16, u16); 4],
   pub border_color: [u8; 4],
   pub inside_color: [u8; 4],
   pub outside_color: [u8; 4],
-  pub margin: u16,
 }
 impl ExpandedBoxSettings {
   fn from_box_settings(settings: &BoxSettings) -> ExpandedBoxSettings {
@@ -64,6 +87,9 @@ impl ExpandedBoxSettings {
     let radius_height_max =
       ((settings.height as isize / 2) - margin as isize * 2 - 1).max(0) as u16;
 
+    //TODO: Verify thickness.
+    let thickness = settings.border_thickness;
+
     //Ensure radius is valid.
     let radius = settings
       .corner_radius
@@ -73,8 +99,14 @@ impl ExpandedBoxSettings {
     ExpandedBoxSettings {
       width: settings.width,
       height: settings.height,
+      h_width: settings.width / 2,
+      h_height: settings.height / 2,
+      inside_width: (settings.width - margin * 2 - thickness * 2) / 2,
+      h_inside_width: (settings.width - margin * 2 - thickness * 2) / 2,
+      inside_height: (settings.height - margin * 2 - thickness * 2) / 2,
+      h_inside_height: (settings.height - margin * 2 - thickness * 2) / 2,
       radius,
-      thickness: settings.border_thickness,
+      thickness,
       corner_c: [
         (radius + margin, radius + margin),
         (settings.width - radius - 1 - margin, radius + margin),
@@ -113,24 +145,24 @@ pub fn border_box_quarter(settings: &BoxSettings) -> Vec<u8> {
   for x in s.radius..s.width - 1 {
     set_pixel(
       &mut pixels,
-      xy_to_i(&s.width, &x, &s.margin),
+      &xy_to_i(&s.width, &x, &s.margin),
       &s.border_color,
     );
     set_pixel(
       &mut pixels,
-      xy_to_i(&s.width, &x, &(s.height - s.margin - 1)),
+      &xy_to_i(&s.width, &x, &(s.height - s.margin - 1)),
       &s.border_color,
     );
   }
   for y in s.radius..s.height - s.radius - 1 {
     set_pixel(
       &mut pixels,
-      xy_to_i(&s.width, &s.margin, &y),
+      &xy_to_i(&s.width, &s.margin, &y),
       &s.border_color,
     );
     set_pixel(
       &mut pixels,
-      xy_to_i(&s.width, &(s.height - s.margin - 1), &y),
+      &xy_to_i(&s.width, &(s.height - s.margin - 1), &y),
       &s.border_color,
     );
   }
@@ -162,36 +194,26 @@ pub fn border_box_quarter_b(settings: &BoxSettings) -> Vec<u8> {
     for y_offset in 0..s.margin + s.thickness {
       set_pixel(
         &mut pixels,
-        xy_to_i(&s.width, &x, &y_offset),
+        &xy_to_i(&s.width, &x, &y_offset),
         &if y_offset < s.margin {
           s.outside_color
         } else {
           s.border_color
         },
       );
-      // set_pixel(
-      //   &mut pixels,
-      //   xy_to_i(&s.width, &x, &(s.height - s.margin - 1 - y_offset)),
-      //   &s.border_color,
-      // );
     }
   }
   for y in s.radius..s.height {
     for x_offset in 0..s.margin + s.thickness {
       set_pixel(
         &mut pixels,
-        xy_to_i(&s.width, &x_offset, &y),
+        &xy_to_i(&s.width, &x_offset, &y),
         &if x_offset < s.margin {
           s.outside_color
         } else {
           s.border_color
         },
       );
-      // set_pixel(
-      //   &mut pixels,
-      //   xy_to_i(&s.width, &(s.height - s.margin - 1 - x_offset), &y),
-      //   &s.border_color,
-      // );
     }
   }
 
@@ -233,7 +255,7 @@ fn check_and_set_pixel(
   y: u16,
   corner: usize,
 ) {
-  let d = distance(x, y, s.corner_c[corner].0, s.corner_c[corner].1);
+  let d = distance_u16(x, y, s.corner_c[corner].0, s.corner_c[corner].1);
   if DEBUG {
     let i = xy_to_i(&s.width, &x, &y);
     println!("x{},y{}   i:{}   d:{}", x, y, i, d);
@@ -243,25 +265,20 @@ fn check_and_set_pixel(
     //The pixel is inside box.
     if d >= (s.radius - s.thickness) as f32 {
       //This pixel is inside the border.
-      set_pixel(pixels, i, &s.border_color);
+      set_pixel(pixels, &i, &s.border_color);
       return;
     }
-    set_pixel(pixels, i, &s.inside_color);
+    set_pixel(pixels, &i, &s.inside_color);
     return;
   }
-  set_pixel(pixels, i, &s.outside_color);
+  set_pixel(pixels, &i, &s.outside_color);
 }
 
-fn set_pixel(pixels: &mut Vec<u8>, index: usize, c: &[u8; 4]) {
+pub(crate) fn set_pixel(pixels: &mut Vec<u8>, index: &usize, c: &[u8; 4]) {
   pixels[(index * 4)] = c[0];
   pixels[(index * 4) + 1] = c[1];
   pixels[(index * 4) + 2] = c[2];
   pixels[(index * 4) + 3] = c[3];
-}
-
-/** Converts u16 to f32 and calculates planar distance between a and b. */
-fn distance(ax: u16, ay: u16, bx: u16, by: u16) -> f32 {
-  ((ax as f32 - bx as f32).powi(2) + (ay as f32 - by as f32).powi(2)).sqrt()
 }
 
 // fn print_vals(pixels: &Vec<u8>) {
@@ -573,25 +590,6 @@ mod tests {
     assert_eq!(result.radius, 0);
   }
 
-  //
-  //
-  //Tests for distance calculations.
-  //
-  #[test]
-  fn distance_0() {
-    let result = distance(0, 0, 0, 0);
-    assert_eq!(result, 0.0);
-  }
-  #[test]
-  fn distance_1() {
-    let result = distance(0, 0, 1, 0);
-    assert_eq!(result, 1.0);
-  }
-  #[test]
-  fn distance_diagonal() {
-    let result = distance(0, 0, 1, 1);
-    assert_eq!(result, 1.4142135);
-  }
   #[test]
   fn xy_to_index_0() {
     let result = xy_to_i(&10, &0, &0);
