@@ -1,4 +1,7 @@
-use std::f32::consts::TAU;
+use std::{
+  f32::consts::TAU,
+  ops::{Add, Div, Mul, Sub},
+};
 
 /** Converts u16 to f32 and calculates planar distance between a and b. */
 pub(crate) fn distance_u16(ax: u16, ay: u16, bx: u16, by: u16) -> f32 {
@@ -29,6 +32,8 @@ fn distance_to_segment(a: &(u16, u16), b: &(u16, u16), p: &(u16, u16)) -> f32 {
 }
 
 pub(crate) fn poly_factory(vert_count: u8, x_radius: u16, y_radius: u16) -> Vec<(u16, u16)> {
+  let x = x_radius as f32;
+  let y = y_radius as f32;
   let radians_per_vert = TAU / vert_count as f32;
   let mut pts: Vec<(u16, u16)> = Vec::new();
   pts.reserve(vert_count as usize);
@@ -37,8 +42,8 @@ pub(crate) fn poly_factory(vert_count: u8, x_radius: u16, y_radius: u16) -> Vec<
   let mut rads: f32 = 0.0;
   for _ in 0..vert_count {
     pts.push((
-      x_radius + (x_radius as f32 * rads.cos()).round() as u16,
-      y_radius + (y_radius as f32 * rads.sin()).round() as u16,
+      (x + (x * rads.cos())).round() as u16,
+      (y + (y * rads.sin())).round() as u16,
     ));
     rads += radians_per_vert;
   }
@@ -70,8 +75,10 @@ pub(crate) fn poly_contains(
       if p.1 <= p1.1.max(p2.1) {
         if p.0 <= p1.0.max(p2.0) {
           if p1.1 != p2.1 {
-            x_intersections = (p.1 - p1.1) * (p2.0 - p1.0) / (p2.1 - p1.1) + p1.0;
-            if p1.0 == p2.0 || p.0 <= x_intersections {
+            x_intersections = (p.1 as f32 - p1.1 as f32) * (p2.0 as f32 - p1.0 as f32)
+              / (p2.1 as f32 - p1.1 as f32)
+              + p1.0 as f32;
+            if p1.0 == p2.0 || p.0 as f32 <= x_intersections {
               counter += 1;
             }
           }
@@ -99,6 +106,13 @@ pub(crate) fn poly_contains(
   }
 }
 
+pub fn map_range<T: Copy>(from_range: (T, T), to_range: (T, T), s: T) -> T
+where
+  T: Add<T, Output = T> + Sub<T, Output = T> + Mul<T, Output = T> + Div<T, Output = T>,
+{
+  to_range.0 + (s - from_range.0) * (to_range.1 - to_range.0) / (from_range.1 - from_range.0)
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -106,30 +120,27 @@ mod tests {
   #[test]
   fn poly_factory_triangle_right() {
     let result = poly_factory(3, 10, 10);
-    assert_eq!(result, vec![(20, 10), (10, 19), (10, 10)]);
+    assert_eq!(result, vec![(20, 10), (5, 19), (5, 1)]);
   }
   #[test]
   fn poly_factory_diamond() {
     let result = poly_factory(4, 10, 10);
-    assert_eq!(result, vec![(20, 10), (10, 20), (10, 10), (10, 10)]);
+    assert_eq!(result, vec![(20, 10), (10, 20), (0, 10), (10, 0)]);
   }
   #[test]
   fn poly_factory_diamond_tall() {
     let result = poly_factory(4, 10, 20);
-    assert_eq!(result, vec![(20, 20), (10, 40), (10, 20), (10, 20)]);
+    assert_eq!(result, vec![(20, 20), (10, 40), (0, 20), (10, 0)]);
   }
   #[test]
   fn poly_factory_diamond_wide() {
     let result = poly_factory(4, 20, 10);
-    assert_eq!(result, vec![(40, 10), (20, 20), (20, 10), (20, 10)]);
+    assert_eq!(result, vec![(40, 10), (20, 20), (0, 10), (20, 0)]);
   }
   #[test]
   fn poly_factory_pentagon() {
     let result = poly_factory(5, 10, 10);
-    assert_eq!(
-      result,
-      vec![(20, 10), (13, 20), (10, 16), (10, 10), (13, 10)]
-    );
+    assert_eq!(result, vec![(20, 10), (13, 20), (2, 16), (2, 4), (13, 0)]);
   }
 
   #[test]

@@ -1,8 +1,13 @@
 use maths::distance_u16;
+pub use spriteor::*;
 
+mod colors;
 mod debug;
+mod line_ops;
 mod maths;
 mod patterns;
+mod rect_ops;
+mod spriteor;
 
 static DEBUG: bool = false;
 
@@ -55,15 +60,12 @@ impl Default for BoxSettings {
 }
 pub(crate) struct ExpandedBoxSettings {
   pub width: u16,
-  pub h_width: u16,
   pub height: u16,
-  pub h_height: u16,
   pub radius: u16,
   pub thickness: u16,
   pub margin: u16,
-  pub inside_width: u16,
   pub h_inside_width: u16,
-  pub inside_height: u16,
+  // pub inside_height: u16,
   pub h_inside_height: u16,
   pub corner_c: [(u16, u16); 4],
   pub border_color: [u8; 4],
@@ -99,11 +101,11 @@ impl ExpandedBoxSettings {
     ExpandedBoxSettings {
       width: settings.width,
       height: settings.height,
-      h_width: settings.width / 2,
-      h_height: settings.height / 2,
-      inside_width: (settings.width - margin * 2 - thickness * 2) / 2,
+      // h_width: settings.width / 2,
+      // h_height: settings.height / 2,
+      // inside_width: (settings.width - margin * 2 - thickness * 2) / 2,
       h_inside_width: (settings.width - margin * 2 - thickness * 2) / 2,
-      inside_height: (settings.height - margin * 2 - thickness * 2) / 2,
+      // inside_height: (settings.height - margin * 2 - thickness * 2) / 2,
       h_inside_height: (settings.height - margin * 2 - thickness * 2) / 2,
       radius,
       thickness,
@@ -174,8 +176,7 @@ pub fn border_box_quarter(settings: &BoxSettings) -> Vec<u8> {
 }
 pub fn border_box_quarter_b(settings: &BoxSettings) -> Vec<u8> {
   let mut s = ExpandedBoxSettings::from_box_settings(&settings);
-  s.width = s.width / 2;
-  s.height = s.height / 2;
+  // let p = settings.fill.clone();
 
   let mut pixels = vec![0 as u8; s.width as usize * s.height as usize * 4]
     .iter()
@@ -219,6 +220,11 @@ pub fn border_box_quarter_b(settings: &BoxSettings) -> Vec<u8> {
 
   s.width = settings.width;
   s.height = settings.height;
+
+  // let pixels_with_pattern = match p {
+  //   None => pixels,
+  //   Some(FillPattern::PolygonFillSettings(p)) => polygon_pattern(pixels, &s, &p),
+  // };
 
   mirror_b(s, pixels)
 }
