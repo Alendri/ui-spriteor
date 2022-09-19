@@ -1,5 +1,3 @@
-use crate::xy_to_i;
-
 pub(crate) fn add_color(a: &[u8; 4], b: &[u8; 4]) -> [u8; 4] {
   if a[3] == 0 || b[3] == 255 {
     return b.clone();
@@ -35,16 +33,16 @@ pub(crate) fn add_color_set_pixel(values: &mut Vec<u8>, index: &usize, color: &[
   values[(index * 4) + 2] = color[2];
   values[(index * 4) + 3] = color[3];
 }
-pub(crate) fn add_color_set_pixel_x_y(
-  values: &mut Vec<u8>,
-  x: &u16,
-  y: &u16,
-  color: &[u8; 4],
-  width: &u16,
-) {
-  let i = xy_to_i(&width, &x, &y);
-  add_color_set_pixel(values, &i, color);
-}
+// pub(crate) fn add_color_set_pixel_x_y(
+//   values: &mut Vec<u8>,
+//   x: &u16,
+//   y: &u16,
+//   color: &[u8; 4],
+//   width: &u16,
+// ) {
+//   let i = xy_to_i(&width, &x, &y);
+//   add_color_set_pixel(values, &i, color);
+// }
 
 #[cfg(test)]
 mod tests {

@@ -38,38 +38,60 @@ impl Default for SpriteorRectOp {
 
 #[derive(Debug)]
 pub(crate) struct RectOpUnw {
-  top: u16,
-  right: u16,
-  bottom: u16,
-  left: u16,
+  pub top: u16,
+  pub right: u16,
+  pub bottom: u16,
+  pub left: u16,
+  pub border_color: [u8; 4],
+  pub fill_color: [u8; 4],
   radius: u16,
   border_width: u16,
-  fill_color: [u8; 4],
-  border_color: [u8; 4],
   corners: [(u16, u16); 4],
   sprite_width: u16,
-  sprite_height: u16,
-  margin: u16,
-  border_box_left: u16,
-  border_box_right: u16,
-  border_box_top: u16,
-  border_box_bottom: u16,
+  pub border_box_left: u16,
+  pub border_box_right: u16,
+  pub border_box_top: u16,
+  pub border_box_bottom: u16,
 }
+
 impl RectOpUnw {
+  pub fn new(
+    sprite_width: u16,
+    top: u16,
+    right: u16,
+    bottom: u16,
+    left: u16,
+    fill: [u8; 4],
+  ) -> RectOpUnw {
+    RectOpUnw {
+      top,
+      right,
+      bottom,
+      left,
+      radius: 0,
+      border_width: 0,
+      fill_color: fill,
+      border_color: [0, 0, 0, 0],
+      corners: [(0, 0), (0, 0), (0, 0), (0, 0)],
+      sprite_width,
+      border_box_left: 0,
+      border_box_right: 0,
+      border_box_top: 0,
+      border_box_bottom: 0,
+    }
+  }
   pub fn empty(sprite_width: &u16, sprite_height: &u16, margin: &u16) -> RectOpUnw {
     RectOpUnw {
-      top: 0,
-      right: sprite_width - 1,
-      bottom: sprite_height - 1,
-      left: 0,
+      top: *margin,
+      right: sprite_width - margin - 1,
+      bottom: sprite_height - margin - 1,
+      left: *margin,
       radius: 0,
       border_width: 0,
       fill_color: [0, 0, 0, 0],
       border_color: [0, 0, 0, 0],
       corners: [(0, 0), (0, 0), (0, 0), (0, 0)],
       sprite_width: *sprite_width,
-      sprite_height: *sprite_height,
-      margin: *margin,
       border_box_left: 0,
       border_box_right: 0,
       border_box_top: 0,
@@ -92,24 +114,24 @@ impl RectOpUnw {
 
     let a_positive = (
       if a.0 < 0 {
-        (*sprite_width as i16 - a.0).max(0)
+        (*sprite_width as i16 - a.0 - 1).max(0)
       } else {
         a.0
       } as u16,
       if a.1 < 0 {
-        (*sprite_height as i16 - a.1).max(0)
+        (*sprite_height as i16 - a.1 - 1).max(0)
       } else {
         a.1
       } as u16,
     );
     let b_positive = (
       if b.0 < 0 {
-        (*sprite_width as i16 - b.0).max(0)
+        (*sprite_width as i16 - b.0 - 1).max(0)
       } else {
         b.0
       } as u16,
       if b.1 < 0 {
-        (*sprite_height as i16 - b.1).max(0)
+        (*sprite_height as i16 - b.1 - 1).max(0)
       } else {
         b.1
       } as u16,
@@ -125,6 +147,7 @@ impl RectOpUnw {
       .1
       .max(b_positive.1)
       .min(sprite_height - margin - 1);
+    println!("{} {} {} {}", top, right, bottom, left);
 
     let w = (right - left).max(1) as u16;
     let h = (bottom - top).max(1) as u16;
@@ -146,8 +169,6 @@ impl RectOpUnw {
         (right - r, bottom - r),
         (left + r, bottom - r),
       ],
-      margin: *margin,
-      sprite_height: *sprite_height,
       sprite_width: *sprite_width,
       /** Left edge inside of border. */
       border_box_left: left + op.border_width,
