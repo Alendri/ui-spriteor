@@ -52,7 +52,7 @@ pub(crate) fn poly_factory(vert_count: u8, x_radius: u16, y_radius: u16) -> Vec<
 }
 
 #[derive(PartialEq, Debug)]
-pub(crate) enum PolyContainsResult {
+pub(crate) enum ContainsResult {
   Inside,
   Outside,
   Border,
@@ -62,7 +62,7 @@ pub(crate) fn poly_contains(
   polygon: &Vec<(u16, u16)>,
   p: &(u16, u16),
   border_thickness: u8,
-) -> PolyContainsResult {
+) -> ContainsResult {
   let n = polygon.len();
   let mut p1 = polygon[0];
   let mut p2;
@@ -88,21 +88,21 @@ pub(crate) fn poly_contains(
     p1 = p2;
   }
   if counter % 2 == 0 {
-    PolyContainsResult::Outside
+    ContainsResult::Outside
   } else {
     if border_thickness < 1 {
-      return PolyContainsResult::Inside;
+      return ContainsResult::Inside;
     }
     let mut p1 = polygon[0];
     let mut p2;
     for i in 1..n {
       p2 = polygon[i % n];
       if distance_to_segment(&p1, &p1, &p) <= border_thickness as f32 {
-        return PolyContainsResult::Border;
+        return ContainsResult::Border;
       }
       p1 = p2;
     }
-    PolyContainsResult::Inside
+    ContainsResult::Inside
   }
 }
 
@@ -199,7 +199,7 @@ mod tests {
       (0, 2)
     ];
     let result = poly_contains(&polygon, &(0, 0), 0);
-    assert_eq!(result, PolyContainsResult::Inside);
+    assert_eq!(result, ContainsResult::Inside);
   }
 
   #[rustfmt::skip]
@@ -212,7 +212,7 @@ mod tests {
       (0, 2)
     ];
     let result = poly_contains(&polygon, &(0, 0), 1);
-    assert_eq!(result, PolyContainsResult::Border);
+    assert_eq!(result, ContainsResult::Border);
   }
   #[rustfmt::skip]
   #[test]
@@ -224,7 +224,7 @@ mod tests {
       (0, 64)
     ];
     let result = poly_contains(&polygon, &(1, 1), 1);
-    assert_ne!(result, PolyContainsResult::Border);
+    assert_ne!(result, ContainsResult::Border);
   }
   #[rustfmt::skip]
   #[test]
@@ -236,7 +236,7 @@ mod tests {
       (0, 64)
     ];
     let result = poly_contains(&polygon, &(1, 1), 2);
-    assert_eq!(result, PolyContainsResult::Border);
+    assert_eq!(result, ContainsResult::Border);
   }
 
   #[rustfmt::skip]
@@ -249,7 +249,7 @@ mod tests {
       (0, 2)
     ];
     let result = poly_contains(&polygon, &(1, 1), 0);
-    assert_eq!(result, PolyContainsResult::Inside);
+    assert_eq!(result, ContainsResult::Inside);
   }
   #[rustfmt::skip]
   #[test]
@@ -261,6 +261,6 @@ mod tests {
       (0, 2)
     ];
     let result = poly_contains(&polygon, &(1, 3), 0);
-    assert_eq!(result, PolyContainsResult::Outside);
+    assert_eq!(result, ContainsResult::Outside);
   }
 }

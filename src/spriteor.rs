@@ -1,4 +1,5 @@
 use crate::{
+  debug::print_matrix,
   line_ops::{HLineOp, VLineOp},
   rect_ops::SpriteorRectOp,
 };
@@ -50,6 +51,9 @@ impl Spriteor {
   }
   pub fn finish(&self) -> &Vec<u8> {
     &self.values
+  }
+  pub fn print(&self, mode: u8) {
+    print_matrix(&self.values, self.width, mode);
   }
   pub fn new(settings: &SpriteorSettings) -> Spriteor {
     if settings.width % 2 != 0 || settings.height % 2 != 0 {

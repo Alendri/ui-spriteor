@@ -1,6 +1,6 @@
 use crate::{
   debug::print_points,
-  maths::{poly_contains, poly_factory, PolyContainsResult},
+  maths::{poly_contains, poly_factory, ContainsResult},
   set_pixel, ExpandedBoxSettings, PolygonFillSettings,
 };
 
@@ -41,8 +41,8 @@ pub(crate) fn polygon_pattern(
     for tile_x in 0..tile_width {
       let contains = poly_contains(&poly, &(tile_x, tile_y), 0);
       let color: [u8; 4] = match contains {
-        PolyContainsResult::Inside => [200, 200, 200, 255],
-        PolyContainsResult::Border => [255, 255, 255, 255],
+        ContainsResult::Inside => [200, 200, 200, 255],
+        ContainsResult::Border => [255, 255, 255, 255],
         _ => [255, 0, 0, 0],
       };
       for offset in &i_offsets {
