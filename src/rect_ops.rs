@@ -56,6 +56,26 @@ pub(crate) struct RectOpUnw {
   border_box_bottom: u16,
 }
 impl RectOpUnw {
+  pub fn empty(sprite_width: &u16, sprite_height: &u16, margin: &u16) -> RectOpUnw {
+    RectOpUnw {
+      top: 0,
+      right: sprite_width - 1,
+      bottom: sprite_height - 1,
+      left: 0,
+      radius: 0,
+      border_width: 0,
+      fill_color: [0, 0, 0, 0],
+      border_color: [0, 0, 0, 0],
+      corners: [(0, 0), (0, 0), (0, 0), (0, 0)],
+      sprite_width: *sprite_width,
+      sprite_height: *sprite_height,
+      margin: *margin,
+      border_box_left: 0,
+      border_box_right: 0,
+      border_box_top: 0,
+      border_box_bottom: 0,
+    }
+  }
   pub fn from_rect_op(
     op: &SpriteorRectOp,
     sprite_width: &u16,
@@ -144,16 +164,16 @@ impl RectOpUnw {
     xy_to_i(&self.sprite_width, x, y)
   }
 
-  pub fn add_to(&self, values: &mut Vec<u8>) {
+  pub fn add_to(&self, values: &mut Vec<u8>, container: &RectOpUnw) {
     for x in self.top..self.bottom + 1 {
       for y in self.left..self.right + 1 {
         let contained = self.contains(&x, &y);
         match contained {
           ContainsResult::Border => {
-            add_color_set_pixel(values, &self.xy_to_index(&x, &y), &self.border_color)
+            container.add_to_pixel_if_inside(values, &x, &y, &self.border_color)
           }
           ContainsResult::Inside => {
-            add_color_set_pixel(values, &self.xy_to_index(&x, &y), &self.fill_color)
+            container.add_to_pixel_if_inside(values, &x, &y, &self.fill_color)
           }
           _ => (),
         }
@@ -222,6 +242,7 @@ mod tests {
   fn add_rect_default() {
     let size = 16 as u16;
     let mut values = vec![0 as u8; size as usize * size as usize * 4];
+    let container = RectOpUnw::empty(&size, &size, &0);
     let rect = RectOpUnw::from_rect_op(
       &SpriteorRectOp {
         // border_color: Some([200, 127, 127, 127]),
@@ -234,7 +255,7 @@ mod tests {
       &0,
     );
 
-    rect.add_to(&mut values);
+    rect.add_to(&mut values, &container);
     print_matrix(&values, size, 2);
     assert_eq!(values, vec![0; 4]);
   }

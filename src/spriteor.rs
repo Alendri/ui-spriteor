@@ -1,14 +1,15 @@
 use crate::{
   debug::print_matrix,
   line_ops::{HLineOp, VLineOp},
-  rect_ops::SpriteorRectOp,
+  rect_ops::{RectOpUnw, SpriteorRectOp},
 };
 
 #[derive(Debug, Clone)]
-pub enum Operation {
-  VLineOp(VLineOp),
-  HLineOp(HLineOp),
-  RectOp(SpriteorRectOp),
+pub enum SpriteorOperation {
+  SpriteorVLineOp(VLineOp),
+  SpriteorHLineOp(HLineOp),
+  SpriteorRectOp(SpriteorRectOp),
+  NewTransform,
 }
 
 pub struct SpriteorSettings {
@@ -33,7 +34,7 @@ pub struct Spriteor {
   height: u16,
   margin: u16,
   values: Vec<u8>,
-  ops: Vec<Operation>,
+  ops: Vec<SpriteorOperation>,
 }
 
 impl Spriteor {
@@ -49,11 +50,36 @@ impl Spriteor {
   pub fn pixel_count(&self) -> usize {
     self.values.len() / 4
   }
-  pub fn finish(&self) -> &Vec<u8> {
+  pub fn finalize(&mut self) -> &Vec<u8> {
+    let mut current_rect = RectOpUnw::from_rect_op(
+      &SpriteorRectOp {
+        ..Default::default()
+      },
+      &self.width,
+      &self.height,
+      &self.margin,
+    );
+    for op in &self.ops {
+      match op {
+        SpriteorOperation::SpriteorRectOp(rect_op) => {
+          let rect = RectOpUnw::from_rect_op(&rect_op, &self.width, &self.height, &self.margin);
+          rect.add_to(&mut self.values, &current_rect);
+          current_rect = rect;
+        }
+        SpriteorOperation::SpriteorHLineOp(hline_op) => {}
+        SpriteorOperation::NewTransform => {
+          current_rect = RectOpUnw::empty(&self.width, &self.height, &self.margin);
+        }
+        _ => (),
+      }
+    }
     &self.values
   }
   pub fn print(&self, mode: u8) {
     print_matrix(&self.values, self.width, mode);
+  }
+  pub fn add_operation(&mut self, operation: SpriteorOperation) {
+    self.ops.push(operation);
   }
   pub fn new(settings: &SpriteorSettings) -> Spriteor {
     if settings.width % 2 != 0 || settings.height % 2 != 0 {
@@ -94,11 +120,11 @@ mod tests {
 
   #[test]
   fn background_color_test() {
-    let spriteor = Spriteor::new(&SpriteorSettings {
+    let mut spriteor = Spriteor::new(&SpriteorSettings {
       background_color: Some([255, 255, 0, 128]),
       ..Default::default()
     });
-    let result = spriteor.finish();
+    let result = spriteor.finalize();
     print_matrix(result, 32, 1);
     assert_eq!(
       result,
@@ -107,10 +133,10 @@ mod tests {
   }
   #[test]
   fn spriteor_default() {
-    let spriteor = Spriteor::new(&SpriteorSettings {
+    let mut spriteor = Spriteor::new(&SpriteorSettings {
       ..Default::default()
     });
-    let result = spriteor.finish();
+    let result = spriteor.finalize();
     print_matrix(result, 32, 2);
     assert_eq!(result, &vec![0 as u8; 32 * 32 * 4]);
   }
