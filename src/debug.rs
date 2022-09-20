@@ -51,6 +51,19 @@ pub(crate) fn pixels_to_values(pixels: &Vec<u8>, color: &[u8; 4]) -> Vec<u8> {
   }
   values
 }
+#[cfg(test)]
+pub(crate) fn modify_pixels(values: &mut Vec<u8>, pixels: &Vec<u8>, color: &[u8; 4]) {
+  if values.len() != pixels.len() * 4 {
+    panic!("Modify pixels failed, values and pixel arrays not sized correctly.");
+  }
+  for (pi, p) in pixels.iter().enumerate() {
+    if p > &0 {
+      for i in 0..4 {
+        values[(pi * 4) + i] = color[i];
+      }
+    }
+  }
+}
 
 #[cfg(test)]
 pub(crate) fn print_colors(a: &[u8; 4], b: &[u8; 4], c: &[u8; 4]) {

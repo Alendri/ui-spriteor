@@ -170,8 +170,8 @@ impl RectOpUnw {
   }
 
   pub fn add_to(&self, values: &mut Vec<u8>, container: &RectOpUnw, sprite_width: &u16) {
-    for x in self.top..self.bottom + 1 {
-      for y in self.left..self.right + 1 {
+    for y in self.top..self.bottom + 1 {
+      for x in self.left..self.right + 1 {
         let contained = self.contains(&x, &y);
         match contained {
           ContainsResult::Border => {
