@@ -58,15 +58,22 @@ impl Spriteor {
       &SpriteorRectOp {
         ..Default::default()
       },
-      &self.width,
-      &self.height,
-      &self.margin,
+      0,
+      self.width - 1,
+      self.height - 1,
+      0,
     );
     for op in &self.ops {
       match op {
         SpriteorOperation::SpriteorRectOp(rect_op) => {
-          let rect = RectOpUnw::from_rect_op(&rect_op, &self.width, &self.height, &self.margin);
-          rect.add_to(&mut self.values, &current_rect);
+          let rect = RectOpUnw::from_rect_op(
+            &rect_op,
+            current_rect.border_box_top,
+            current_rect.border_box_right,
+            current_rect.border_box_bottom,
+            current_rect.border_box_left,
+          );
+          rect.add_to(&mut self.values, &current_rect, &self.width);
           current_rect = rect;
         }
         SpriteorOperation::SpriteorHLineOp(hline_op) => {
@@ -318,11 +325,13 @@ mod tests {
     let mut spriteor = Spriteor::new(&SpriteorSettings {
       width: 16,
       height: 16,
+      // background_color: Some([0, 0, 100, 255]),
       ..Default::default()
     });
     spriteor.add_operation(SpriteorOperation::SpriteorRectOp(SpriteorRectOp {
       point_a: Some((1, 1)),
-      point_b: Some((-10, -10)),
+      point_b: Some((-1, -1)),
+      debug: true,
       ..Default::default()
     }));
 
@@ -331,6 +340,7 @@ mod tests {
       fill_color: Some([0, 255, 0, 255]),
       border_width: 1,
       corner_radius: 2,
+      // debug: true,
       ..Default::default()
     }));
     let result = spriteor.finalize();

@@ -22,6 +22,7 @@ pub struct SpriteorRectOp {
   pub border_width: u16,
   pub fill_color: Option<[u8; 4]>,
   pub border_color: Option<[u8; 4]>,
+  pub debug: bool,
 }
 impl Default for SpriteorRectOp {
   fn default() -> Self {
@@ -32,6 +33,7 @@ impl Default for SpriteorRectOp {
       border_width: 0,
       fill_color: None,
       border_color: None,
+      debug: false,
     }
   }
 }
@@ -47,7 +49,6 @@ pub(crate) struct RectOpUnw {
   radius: u16,
   border_width: u16,
   corners: [(u16, u16); 4],
-  sprite_width: u16,
   pub border_box_left: u16,
   pub border_box_right: u16,
   pub border_box_top: u16,
@@ -55,14 +56,7 @@ pub(crate) struct RectOpUnw {
 }
 
 impl RectOpUnw {
-  pub fn new(
-    sprite_width: u16,
-    top: u16,
-    right: u16,
-    bottom: u16,
-    left: u16,
-    fill: [u8; 4],
-  ) -> RectOpUnw {
+  pub fn new(top: u16, right: u16, bottom: u16, left: u16, fill: [u8; 4]) -> RectOpUnw {
     RectOpUnw {
       top,
       right,
@@ -73,7 +67,6 @@ impl RectOpUnw {
       fill_color: fill,
       border_color: [0, 0, 0, 0],
       corners: [(0, 0), (0, 0), (0, 0), (0, 0)],
-      sprite_width,
       border_box_left: 0,
       border_box_right: 0,
       border_box_top: 0,
@@ -91,7 +84,6 @@ impl RectOpUnw {
       fill_color: [0, 0, 0, 0],
       border_color: [0, 0, 0, 0],
       corners: [(0, 0), (0, 0), (0, 0), (0, 0)],
-      sprite_width: *sprite_width,
       border_box_left: 0,
       border_box_right: 0,
       border_box_top: 0,
@@ -100,57 +92,54 @@ impl RectOpUnw {
   }
   pub fn from_rect_op(
     op: &SpriteorRectOp,
-    sprite_width: &u16,
-    sprite_height: &u16,
-    margin: &u16,
+    parent_top: u16,
+    parent_right: u16,
+    parent_bottom: u16,
+    parent_left: u16,
   ) -> RectOpUnw {
-    let m = *margin as i16;
-    let a = op.point_a.unwrap_or((0, 0));
+    let parent_width = (parent_right - parent_left) as i16;
+    let parent_height = (parent_bottom - parent_top) as i16;
+    let a = op
+      .point_a
+      .unwrap_or((parent_left as i16, parent_top as i16));
     let b = op.point_b.unwrap_or(if op.point_a.is_none() {
-      (*sprite_width as i16 - m, *sprite_height as i16 - m)
+      (parent_right as i16, parent_bottom as i16)
     } else {
-      (0, 0)
+      (parent_left as i16, parent_top as i16)
     });
 
     let a_positive = (
       if a.0 < 0 {
-        (*sprite_width as i16 - a.0 - 1).max(0)
+        (parent_width + a.0).max(0)
       } else {
         a.0
       } as u16,
       if a.1 < 0 {
-        (*sprite_height as i16 - a.1 - 1).max(0)
+        (parent_height + a.1).max(0)
       } else {
         a.1
       } as u16,
     );
     let b_positive = (
       if b.0 < 0 {
-        (*sprite_width as i16 - b.0 - 1).max(0)
+        (parent_width + b.0).max(0)
       } else {
         b.0
       } as u16,
       if b.1 < 0 {
-        (*sprite_height as i16 - b.1 - 1).max(0)
+        (parent_height + b.1).max(0)
       } else {
         b.1
       } as u16,
     );
 
-    let left = a_positive.0.min(b_positive.0).max(*margin);
-    let top = a_positive.1.min(b_positive.1).max(*margin);
-    let right = a_positive
-      .0
-      .max(b_positive.0)
-      .min(sprite_width - margin - 1);
-    let bottom = a_positive
-      .1
-      .max(b_positive.1)
-      .min(sprite_height - margin - 1);
-    println!("{} {} {} {}", top, right, bottom, left);
+    let top = a_positive.1.min(b_positive.1).max(parent_top);
+    let right = a_positive.0.max(b_positive.0).min(parent_right);
+    let bottom = a_positive.1.max(b_positive.1).min(parent_bottom);
+    let left = a_positive.0.min(b_positive.0).max(parent_left);
 
-    let w = (right - left).max(1) as u16;
-    let h = (bottom - top).max(1) as u16;
+    let w = (right - left).max(0) as u16;
+    let h = (bottom - top).max(0) as u16;
 
     let r = op.corner_radius.clone().min(w).min(h);
 
@@ -169,7 +158,6 @@ impl RectOpUnw {
         (right - r, bottom - r),
         (left + r, bottom - r),
       ],
-      sprite_width: *sprite_width,
       /** Left edge inside of border. */
       border_box_left: left + op.border_width,
       /** Right edge inside of border. */
@@ -181,20 +169,16 @@ impl RectOpUnw {
     }
   }
 
-  pub fn xy_to_index(&self, x: &u16, y: &u16) -> usize {
-    xy_to_i(&self.sprite_width, x, y)
-  }
-
-  pub fn add_to(&self, values: &mut Vec<u8>, container: &RectOpUnw) {
+  pub fn add_to(&self, values: &mut Vec<u8>, container: &RectOpUnw, sprite_width: &u16) {
     for x in self.top..self.bottom + 1 {
       for y in self.left..self.right + 1 {
         let contained = self.contains(&x, &y);
         match contained {
           ContainsResult::Border => {
-            container.add_to_pixel_if_inside(values, &x, &y, &self.border_color)
+            container.add_to_pixel_if_inside(values, sprite_width, &x, &y, &self.border_color)
           }
           ContainsResult::Inside => {
-            container.add_to_pixel_if_inside(values, &x, &y, &self.fill_color)
+            container.add_to_pixel_if_inside(values, sprite_width, &x, &y, &self.fill_color)
           }
           _ => (),
         }
@@ -202,9 +186,16 @@ impl RectOpUnw {
     }
   }
 
-  pub fn add_to_pixel_if_inside(&self, values: &mut Vec<u8>, x: &u16, y: &u16, color: &[u8; 4]) {
+  pub fn add_to_pixel_if_inside(
+    &self,
+    values: &mut Vec<u8>,
+    sprite_width: &u16,
+    x: &u16,
+    y: &u16,
+    color: &[u8; 4],
+  ) {
     if self.contains(x, y) == ContainsResult::Inside {
-      add_color_set_pixel(values, &self.xy_to_index(x, y), color);
+      add_color_set_pixel(values, &xy_to_i(sprite_width, x, y), color);
     }
   }
 
@@ -271,12 +262,13 @@ mod tests {
         // border_width: 1,
         ..Default::default()
       },
-      &size,
-      &size,
-      &0,
+      0,
+      size,
+      size,
+      0,
     );
 
-    rect.add_to(&mut values, &container);
+    rect.add_to(&mut values, &container, &size);
     print_matrix(&values, size, 2);
     assert_eq!(values, vec![0; 4]);
   }

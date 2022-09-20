@@ -11,14 +11,13 @@ pub struct VLineOp {
 impl VLineOp {
   pub(crate) fn add_to(&self, values: &mut Vec<u8>, container: &RectOpUnw, sprite_width: &u16) {
     let rect = RectOpUnw::new(
-      *sprite_width,
       container.border_box_top,
       container.border_box_right + self.x + self.width,
       container.border_box_bottom,
       container.border_box_left + self.x,
       self.color.unwrap_or([255, 255, 255, 255]),
     );
-    rect.add_to(values, container);
+    rect.add_to(values, container, sprite_width);
   }
 }
 impl Default for VLineOp {
@@ -42,14 +41,13 @@ pub struct HLineOp {
 impl HLineOp {
   pub(crate) fn add_to(&self, values: &mut Vec<u8>, container: &RectOpUnw, sprite_width: &u16) {
     let rect = RectOpUnw::new(
-      *sprite_width,
       container.border_box_top + self.y,
       container.border_box_right,
       container.border_box_top + self.y + self.width,
       container.border_box_left,
       self.color.unwrap_or([255, 255, 255, 255]),
     );
-    rect.add_to(values, container);
+    rect.add_to(values, container, sprite_width);
   }
 }
 impl Default for HLineOp {
