@@ -1,6 +1,7 @@
 use crate::{
   debug::print_matrix,
   line_ops::{SpriteorHLineOp, SpriteorVLineOp},
+  poly_ops::SpriteorPolyOp,
   rect_ops::{RectOpUnw, SpriteorRectOp},
 };
 
@@ -9,6 +10,7 @@ pub enum SpriteorOperation {
   SpriteorVLineOp(SpriteorVLineOp),
   SpriteorHLineOp(SpriteorHLineOp),
   SpriteorRectOp(SpriteorRectOp),
+  SpriteorPolyOp(SpriteorPolyOp),
   NewLayer,
 }
 
@@ -78,6 +80,9 @@ impl Spriteor {
         }
         SpriteorOperation::SpriteorHLineOp(hline_op) => {
           hline_op.add_to(&mut self.values, &current_rect, &self.width);
+        }
+        SpriteorOperation::SpriteorPolyOp(poly_op) => {
+          poly_op.add_to(&mut self.values, &current_rect);
         }
         SpriteorOperation::SpriteorVLineOp(vline_op) => {
           vline_op.add_to(&mut self.values, &current_rect, &self.width);
@@ -320,7 +325,7 @@ mod tests {
     );
   }
 
-  //Composite tests.
+  //Box with box
   #[test]
   fn border_radius_box_in_box() {
     let mut spriteor = Spriteor::new(&SpriteorSettings {
@@ -394,6 +399,43 @@ mod tests {
     );
   }
 
+  //Poly
+  #[rustfmt::skip]
+  #[test]
+  fn default_poly_on_8x8() {
+    let mut spriteor = Spriteor::new(&SpriteorSettings {
+      width: 8,
+      height: 8,
+      ..Default::default()
+    });
+    spriteor.add_operation(SpriteorOperation::SpriteorPolyOp(SpriteorPolyOp {
+      ..Default::default()
+    }));
+    let result = spriteor.finalize();
+
+    let mut values = vec![0 as u8; 8 * 8 * 4];
+    let cross = vec![
+      0, 0, 0, 0, 0, 0, 0, 0,
+      0, 1, 1, 1, 1, 1, 1, 0,
+      0, 1, 1, 1, 1, 1, 1, 0,
+      0, 1, 1, 1, 1, 1, 1, 0,
+      0, 1, 1, 1, 1, 1, 1, 0,
+      0, 1, 1, 1, 1, 1, 1, 0,
+      0, 1, 1, 1, 1, 1, 1, 0,
+      0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+    modify_pixels(&mut values, &cross, &[200, 200, 200, 255]);
+
+
+    print_matrix(result, 8, 2);
+    assert_eq!(
+      result,
+      &values
+    );
+  }
+
+  //Box with lines
+  //Box with lines
   #[rustfmt::skip]
   #[test]
   fn cross_on_box() {

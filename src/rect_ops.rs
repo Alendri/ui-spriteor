@@ -1,7 +1,6 @@
 use crate::{
   colors::add_color_set_pixel,
-  maths::{distance_u16, ContainsResult},
-  xy_to_i,
+  maths::{distance_u16, xy_to_i, ContainsResult},
 };
 
 #[derive(Debug, Clone)]

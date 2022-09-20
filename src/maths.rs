@@ -3,6 +3,10 @@ use std::{
   ops::{Add, Div, Mul, Sub},
 };
 
+pub(crate) fn xy_to_i(width: &u16, x: &u16, y: &u16) -> usize {
+  (y * width + x) as usize
+}
+
 /** Converts u16 to f32 and calculates planar distance between a and b. */
 pub(crate) fn distance_u16(ax: u16, ay: u16, bx: u16, by: u16) -> f32 {
   ((ax as f32 - bx as f32).powi(2) + (ay as f32 - by as f32).powi(2)).sqrt()
