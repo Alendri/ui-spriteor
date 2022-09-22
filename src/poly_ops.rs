@@ -19,10 +19,10 @@ impl SpriteorPolyOp {
   pub(crate) fn add_to(&self, values: &mut Vec<u8>, container: &RectOpUnw) {
     let tile_width = (container.border_box_right - container.border_box_left + 1) / self.x_count;
     let tile_height = (container.border_box_bottom - container.border_box_top + 1) / self.y_count;
-    println!(
-      "tile_width:{}  tile_height:{}  xc:{}    {} - {}",
-      tile_width, tile_height, self.x_count, container.border_box_right, container.border_box_left
-    );
+    // println!(
+    //   "tile_width:{}  tile_height:{}  xc:{}    {} - {}",
+    //   tile_width, tile_height, self.x_count, container.border_box_right, container.border_box_left
+    // );
     let poly = poly_factory(self.resolution, tile_width / 2, tile_height / 2);
     print_points(&"poly", &poly);
 
@@ -40,7 +40,7 @@ impl SpriteorPolyOp {
     let mut i = start_pixel;
     for y in 0..self.y_count {
       for _ in 0..self.x_count {
-        println!("i:{}   offset:{}", tile_index_offsets.len(), i);
+        // println!("i:{}   offset:{}", tile_index_offsets.len(), i);
         tile_index_offsets.push(i as usize);
         //Move to next tile.
         i += tile_width;

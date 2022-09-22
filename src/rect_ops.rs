@@ -245,7 +245,7 @@ fn check_corner_pixel(x: &u16, y: &u16, corner: &(u16, u16), rect: &RectOpUnw) -
 
 #[cfg(test)]
 mod tests {
-  use crate::debug::print_matrix;
+  use crate::debug::{pixels_to_values, print_matrix};
 
   use super::*;
 
@@ -269,6 +269,10 @@ mod tests {
 
     rect.add_to(&mut values, &container, &size);
     print_matrix(&values, size, 2);
-    assert_eq!(values, vec![0; 4]);
+    let values = pixels_to_values(
+      &vec![1 as u8; size as usize * size as usize],
+      &[200, 200, 200, 255],
+    );
+    assert_eq!(values, values);
   }
 }

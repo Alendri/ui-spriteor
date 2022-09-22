@@ -46,7 +46,7 @@ pub(crate) fn poly_factory(vert_count: u8, x_radius: u16, y_radius: u16) -> Vec<
   let x_max = (x * 2.0) - 1.0;
   let y_max = (y * 2.0) - 1.0;
 
-  println!("x:{}, y:{}", x, y);
+  // println!("x:{}, y:{}", x, y);
   let radians_per_vert = TAU / vert_count as f32;
   let mut pts: Vec<(u16, u16)> = Vec::new();
   pts.reserve(vert_count as usize);
@@ -267,7 +267,7 @@ mod tests {
   #[test]
   fn poly_factory_triangle_right() {
     let result = poly_factory(3, 10, 10);
-    assert_eq!(result, vec![(20, 10), (5, 19), (5, 1)]);
+    assert_eq!(result, vec![(19, 10), (5, 19), (5, 1)]);
   }
   #[test]
   fn poly_factory_diamond() {
@@ -277,19 +277,23 @@ mod tests {
   #[test]
   fn poly_factory_diamond_tall() {
     let result = poly_factory(4, 10, 20);
-    assert_eq!(result, vec![(20, 20), (10, 40), (0, 20), (10, 0)]);
+    assert_eq!(result, vec![(19, 20), (10, 39), (0, 20), (10, 0)]);
   }
   #[test]
   fn poly_factory_diamond_wide() {
     let result = poly_factory(4, 20, 10);
-    assert_eq!(result, vec![(40, 10), (20, 20), (0, 10), (20, 0)]);
+    assert_eq!(result, vec![(39, 10), (20, 19), (0, 10), (20, 0)]);
   }
   #[test]
   fn poly_factory_pentagon() {
     let result = poly_factory(5, 10, 10);
-    assert_eq!(result, vec![(20, 10), (13, 20), (2, 16), (2, 4), (13, 0)]);
+    assert_eq!(result, vec![(19, 10), (13, 19), (2, 16), (2, 4), (13, 0)]);
   }
 
+  //
+  //
+  //Distance to segment tests
+  //
   #[test]
   fn dist_to_segment() {
     let result = distance_to_segment(&(0, 0), &(0, 2), &(2, 1));
@@ -358,7 +362,7 @@ mod tests {
     ];
     let result: Vec<ContainsResult> = pixels.iter().map(|p| {
       let c = poly_contains(&poly, p, 0);
-      println!("{},{}      c:{:?}", p.0, p.1, c);
+      // println!("{},{}      c:{:?}", p.0, p.1, c);
       c
     }).collect();
     assert_eq!(result, vec![
