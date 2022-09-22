@@ -43,16 +43,21 @@ fn distance_to_segment(a: &(u16, u16), b: &(u16, u16), p: &(u16, u16)) -> f32 {
 pub(crate) fn poly_factory(vert_count: u8, x_radius: u16, y_radius: u16) -> Vec<(u16, u16)> {
   let x = x_radius as f32;
   let y = y_radius as f32;
+  let x_max = (x * 2.0) - 1.0;
+  let y_max = (y * 2.0) - 1.0;
+
+  println!("x:{}, y:{}", x, y);
   let radians_per_vert = TAU / vert_count as f32;
   let mut pts: Vec<(u16, u16)> = Vec::new();
   pts.reserve(vert_count as usize);
 
-  // let mut rads = radians_per_vert / 2.0;
   let mut rads: f32 = 0.0;
   for _ in 0..vert_count {
     pts.push((
-      (x + (x * rads.cos())).round() as u16,
-      (y + (y * rads.sin())).round() as u16,
+      (x + (x * rads.cos())).min(x_max).round() as u16,
+      (y + (y * rads.sin())).min(y_max).round() as u16,
+      // (x + (x * rads.cos())).round() as u16,
+      // (y + (y * rads.sin())).round() as u16,
     ));
     rads += radians_per_vert;
   }
@@ -141,13 +146,13 @@ pub(crate) fn poly_contains(
       return ContainsResult::Inside;
     }
     let seg_point_b = (polygon[p_index].0 as f32, polygon[p_index].1 as f32);
-    let intersection = path_intersection(&origin, &target, &seg_point_a, &seg_point_b);
-    println!(
-      "{:?}    {:?}  {:?}",
-      intersection,
-      (origin, target),
-      (seg_point_a, seg_point_b)
-    );
+    // let intersection = path_intersection(&origin, &target, &seg_point_a, &seg_point_b);
+    // println!(
+    //   "{:?}    {:?}  {:?}",
+    //   intersection,
+    //   (origin, target),
+    //   (seg_point_a, seg_point_b)
+    // );
     if let Some(intersection) = path_intersection(&origin, &target, &seg_point_a, &seg_point_b) {
       if intersection.0 == seg_point_a.0 && intersection.1 == seg_point_a.1 {
         //Intersecting on a polygon point, count it so we can remove the duplicate intersections we will find.
@@ -159,29 +164,33 @@ pub(crate) fn poly_contains(
 
     seg_point_a = seg_point_b;
   }
-  println!(
-    "intersections:{}   {}",
-    intersections - poly_point_intersections,
-    (intersections - poly_point_intersections) % 2
-  );
+  // println!(
+  //   "intersections:{}   {}",
+  //   intersections - poly_point_intersections,
+  //   (intersections - poly_point_intersections) % 2
+  // );
   if intersections - poly_point_intersections > 0
     && (intersections - poly_point_intersections) % 2 != 0
   {
     //Point is inside poly; check if it is inside border.
-    println!(
-      "dist {:?}  {:?}     {:?}",
-      &polygon[last_intersection_seg_index],
-      &polygon[(last_intersection_seg_index + 1) % len],
-      &p
-    );
-    let distance = distance_to_segment(
-      &polygon[last_intersection_seg_index],
-      &polygon[(last_intersection_seg_index + 1) % len],
-      p,
-    );
-    println!("distance:{}", distance);
-    if distance < border_thickness as f32 {
-      ContainsResult::Border
+    // println!(
+    //   "dist {:?}  {:?}     {:?}",
+    //   &polygon[last_intersection_seg_index],
+    //   &polygon[(last_intersection_seg_index + 1) % len],
+    //   &p
+    // );
+    if border_thickness > 0 {
+      let distance = distance_to_segment(
+        &polygon[last_intersection_seg_index],
+        &polygon[(last_intersection_seg_index + 1) % len],
+        p,
+      );
+      if distance < border_thickness as f32 {
+        // println!("distance:{}", distance);
+        ContainsResult::Border
+      } else {
+        ContainsResult::Inside
+      }
     } else {
       ContainsResult::Inside
     }
@@ -199,6 +208,8 @@ where
 
 #[cfg(test)]
 mod tests {
+  use crate::debug::print_points;
+
   use super::*;
 
   static A1: (f32, f32) = (1.0, 1.0);
@@ -261,7 +272,7 @@ mod tests {
   #[test]
   fn poly_factory_diamond() {
     let result = poly_factory(4, 10, 10);
-    assert_eq!(result, vec![(20, 10), (10, 20), (0, 10), (10, 0)]);
+    assert_eq!(result, vec![(19, 10), (10, 19), (0, 10), (10, 0)]);
   }
   #[test]
   fn poly_factory_diamond_tall() {
@@ -330,6 +341,37 @@ mod tests {
     assert_eq!(result, 1.4142135);
   }
 
+  #[rustfmt::skip]
+  #[test]
+  fn diamond_8by8_contains() {
+    let poly = poly_factory(4, 4, 4);
+    print_points(&"diamond", &poly);
+    let pixels = vec![
+      (0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0),
+      (0, 1), (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1),
+      (0, 2), (1, 2), (2, 2), (3, 2), (4, 2), (5, 2), (6, 2), (7, 2),
+      (0, 3), (1, 3), (2, 3), (3, 3), (4, 3), (5, 3), (6, 3), (7, 3),
+      (0, 4), (1, 4), (2, 4), (3, 4), (4, 4), (5, 4), (6, 4), (7, 4),
+      (0, 5), (1, 5), (2, 5), (3, 5), (4, 5), (5, 5), (6, 5), (7, 5),
+      (0, 6), (1, 6), (2, 6), (3, 6), (4, 6), (5, 6), (6, 6), (7, 6),
+      (0, 7), (1, 7), (2, 7), (3, 7), (4, 7), (5, 7), (6, 7), (7, 7),
+    ];
+    let result: Vec<ContainsResult> = pixels.iter().map(|p| {
+      let c = poly_contains(&poly, p, 0);
+      println!("{},{}      c:{:?}", p.0, p.1, c);
+      c
+    }).collect();
+    assert_eq!(result, vec![
+      ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Inside,  ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Outside,
+      ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Outside,
+      ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Outside, ContainsResult::Outside,
+      ContainsResult::Outside, ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Outside,
+      ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,
+      ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Outside, ContainsResult::Outside,
+      ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Inside,  ContainsResult::Inside,  ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Outside,
+      ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Inside,  ContainsResult::Outside, ContainsResult::Outside, ContainsResult::Outside,
+    ]);
+  }
   #[rustfmt::skip]
   #[test]
   fn is_0_0_in_2by2() {

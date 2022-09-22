@@ -17,18 +17,18 @@ pub struct SpriteorPolyOp {
 }
 impl SpriteorPolyOp {
   pub(crate) fn add_to(&self, values: &mut Vec<u8>, container: &RectOpUnw) {
-    let tile_width = (container.border_box_right - container.border_box_left) / self.x_count;
-    let tile_height = (container.border_box_bottom - container.border_box_top) / self.y_count;
+    let tile_width = (container.border_box_right - container.border_box_left + 1) / self.x_count;
+    let tile_height = (container.border_box_bottom - container.border_box_top + 1) / self.y_count;
     println!(
-      "tile_width:{}  tile_height:{}  xc:{}",
-      tile_width, tile_height, self.x_count
+      "tile_width:{}  tile_height:{}  xc:{}    {} - {}",
+      tile_width, tile_height, self.x_count, container.border_box_right, container.border_box_left
     );
     let poly = poly_factory(self.resolution, tile_width / 2, tile_height / 2);
     print_points(&"poly", &poly);
 
     let start_pixel_row = container.border_box_top;
     let start_pixel_on_row = container.border_box_left;
-    let pixels_per_row = container.border_box_right - container.border_box_left;
+    let pixels_per_row = container.border_box_right - container.border_box_left + 1;
     let start_pixel = (pixels_per_row * start_pixel_row) + start_pixel_on_row;
 
     //
@@ -49,8 +49,8 @@ impl SpriteorPolyOp {
       i = (pixels_per_row * start_pixel_row) + (pixels_per_row * y) + start_pixel_on_row;
     }
 
-    let fill_color = self.border_color.unwrap_or([255, 255, 255, 255]);
-    let border_color = self.border_color.unwrap_or([200, 200, 200, 255]);
+    let fill_color = self.border_color.unwrap_or([200, 200, 200, 255]);
+    let border_color = self.border_color.unwrap_or([255, 255, 255, 255]);
 
     //
     //

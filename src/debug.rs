@@ -31,7 +31,7 @@ pub(crate) fn print_points(prefix: &str, pts: &Vec<(u16, u16)>) {
     "".to_owned()
   };
   for i in 0..pts.len() {
-    println!("{}: i:{}  ({:#2},{:#2})", pre, i, pts[i].0, pts[i].1);
+    println!("{}: i:{}  ({:#2}, {:#2})", pre, i, pts[i].0, pts[i].1);
   }
 }
 
