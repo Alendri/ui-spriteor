@@ -26,6 +26,11 @@ fn distance_to_segment(a: &(u16, u16), b: &(u16, u16), p: &(u16, u16)) -> f32 {
     //If a and b are the same point return distance p->a.
     return distance_u16(a.0, a.1, p.0, p.1);
   }
+
+  let a = (a.0 as f32, a.1 as f32);
+  let b = (b.0 as f32, b.1 as f32);
+  let p = (p.0 as f32, p.1 as f32);
+
   let t = ((p.0 - a.0) * (b.0 - a.0) + (p.1 - a.1) * (b.1 - a.1)) as f32 / length;
   let t_clamped = 0.0_f32.max(1.0_f32.min(t));
   let x = (
@@ -62,51 +67,126 @@ pub(crate) enum ContainsResult {
   Border,
 }
 
+pub(crate) fn circle_contains(
+  p: &(u16, u16),
+  center: &(u16, u16),
+  radius: u16,
+  border_thickness: u8,
+) -> ContainsResult {
+  let distance = distance_u16(p.0, p.1, center.0, center.1);
+  let r = radius as f32;
+  match distance {
+    d if d > r => ContainsResult::Outside,
+    d if d <= r && d >= border_thickness as f32 => ContainsResult::Border,
+    _ => ContainsResult::Inside,
+  }
+}
+
+pub(crate) fn path_intersection(
+  a1: &(f32, f32),
+  a2: &(f32, f32),
+  b1: &(f32, f32),
+  b2: &(f32, f32),
+) -> Option<(f32, f32)> {
+  //https://pastebin.com/nf56MHP7
+  let s1x = a2.0 - a1.0;
+  let s1y = a2.1 - a1.1;
+  let s2x = b2.0 - b1.0;
+  let s2y = b2.1 - b1.1;
+
+  let sdiv = -s2x * s1y + s1x * s2y;
+  let tdiv = -s2x * s1y + s1x * s2y;
+
+  if sdiv == 0.0 || tdiv == 0.0 {
+    return None;
+  }
+  let s = (-s1y * (a1.0 - b1.0) + s1x * (a1.1 - b1.1)) / sdiv;
+  let t = (s2x * (a1.1 - b1.1) - s2y * (a1.0 - b1.0)) / sdiv;
+
+  if s >= 0.0 && s <= 1.0 && t >= 0.0 && t <= 1.0 {
+    return Some((a1.0 + (t * s1x), a1.1 + (t * s1y)));
+  }
+  None
+}
+
 pub(crate) fn poly_contains(
   polygon: &Vec<(u16, u16)>,
   p: &(u16, u16),
   border_thickness: u8,
 ) -> ContainsResult {
-  let n = polygon.len();
-  let mut p1 = polygon[0];
-  let mut p2;
-  let mut x_intersections;
-  let mut counter = 0;
-
-  for i in 1..n {
-    p2 = polygon[i % n];
-    if p.1 >= p1.1.min(p2.1) {
-      if p.1 <= p1.1.max(p2.1) {
-        if p.0 <= p1.0.max(p2.0) {
-          if p1.1 != p2.1 {
-            x_intersections = (p.1 as f32 - p1.1 as f32) * (p2.0 as f32 - p1.0 as f32)
-              / (p2.1 as f32 - p1.1 as f32)
-              + p1.0 as f32;
-            if p1.0 == p2.0 || p.0 as f32 <= x_intersections {
-              counter += 1;
-            }
-          }
-        }
-      }
+  if p.0 == polygon[0].0 && p.1 == polygon[0].1 {
+    //Point is on the edge, counts as inside.
+    if border_thickness > 0 {
+      return ContainsResult::Border;
     }
-    p1 = p2;
+    return ContainsResult::Inside;
   }
-  if counter % 2 == 0 {
-    ContainsResult::Outside
-  } else {
-    if border_thickness < 1 {
-      return ContainsResult::Inside;
-    }
-    let mut p1 = polygon[0];
-    let mut p2;
-    for i in 1..n {
-      p2 = polygon[i % n];
-      if distance_to_segment(&p1, &p1, &p) <= border_thickness as f32 {
+  let origin = (-1.0, -1.0);
+  let target = (p.0 as f32, p.1 as f32);
+
+  let mut intersections: usize = 0;
+  let mut poly_point_intersections: usize = 0;
+  let mut last_intersection_seg_index: usize = 0;
+
+  let mut seg_point_a = (polygon[0].0 as f32, polygon[0].1 as f32);
+
+  let len = polygon.len();
+  for i in 1..len + 1 {
+    let p_index = if i < len { i } else { 0 };
+    if p.0 == polygon[p_index].0 && p.1 == polygon[p_index].1 {
+      //Point is on the edge, counts as inside.
+      if border_thickness > 0 {
         return ContainsResult::Border;
       }
-      p1 = p2;
+      return ContainsResult::Inside;
     }
-    ContainsResult::Inside
+    let seg_point_b = (polygon[p_index].0 as f32, polygon[p_index].1 as f32);
+    let intersection = path_intersection(&origin, &target, &seg_point_a, &seg_point_b);
+    println!(
+      "{:?}    {:?}  {:?}",
+      intersection,
+      (origin, target),
+      (seg_point_a, seg_point_b)
+    );
+    if let Some(intersection) = path_intersection(&origin, &target, &seg_point_a, &seg_point_b) {
+      if intersection.0 == seg_point_a.0 && intersection.1 == seg_point_a.1 {
+        //Intersecting on a polygon point, count it so we can remove the duplicate intersections we will find.
+        poly_point_intersections += 1;
+      }
+      intersections += 1;
+      last_intersection_seg_index = i - 1;
+    }
+
+    seg_point_a = seg_point_b;
+  }
+  println!(
+    "intersections:{}   {}",
+    intersections - poly_point_intersections,
+    (intersections - poly_point_intersections) % 2
+  );
+  if intersections - poly_point_intersections > 0
+    && (intersections - poly_point_intersections) % 2 != 0
+  {
+    //Point is inside poly; check if it is inside border.
+    println!(
+      "dist {:?}  {:?}     {:?}",
+      &polygon[last_intersection_seg_index],
+      &polygon[(last_intersection_seg_index + 1) % len],
+      &p
+    );
+    let distance = distance_to_segment(
+      &polygon[last_intersection_seg_index],
+      &polygon[(last_intersection_seg_index + 1) % len],
+      p,
+    );
+    println!("distance:{}", distance);
+    if distance < border_thickness as f32 {
+      ContainsResult::Border
+    } else {
+      ContainsResult::Inside
+    }
+  } else {
+    ContainsResult::Outside
   }
 }
 
@@ -121,6 +201,58 @@ where
 mod tests {
   use super::*;
 
+  static A1: (f32, f32) = (1.0, 1.0);
+  static A2: (f32, f32) = (2.0, 1.0);
+  static B1: (f32, f32) = (1.0, 2.0);
+  static B2: (f32, f32) = (2.0, 2.0);
+  static C1: (f32, f32) = (-1.0, -1.5);
+  static C2: (f32, f32) = (4.0, -1.5);
+  static D1: (f32, f32) = (2.0, -2.0);
+
+  #[test]
+  fn line_intersection_positive_coords() {
+    let result = path_intersection(&A1, &B2, &B1, &A2);
+    assert_eq!(result, Some((1.5, 1.5)));
+  }
+  #[test]
+  fn line_intersection_parallel() {
+    let result = path_intersection(&A1, &A2, &B1, &B2);
+    assert_eq!(result, None);
+  }
+  #[test]
+  fn line_intersection_diverging() {
+    let result = path_intersection(&A1, &C1, &A2, &C2);
+    assert_eq!(result, None);
+  }
+  #[test]
+  fn line_intersection_same_origin() {
+    let result = path_intersection(&A1, &A2, &A1, &B2);
+    assert_eq!(result, Some((1.0, 1.0)));
+  }
+  #[test]
+  fn line_intersection_negative_coords() {
+    let result = path_intersection(&C1, &C2, &D1, &B2);
+    assert_eq!(result, Some((2.0, -1.5)));
+  }
+  #[test]
+  fn line_intersection_on_line() {
+    let result = path_intersection(&A1, &A2, &D1, &B2);
+    assert_eq!(result, Some((2.0, 1.0)));
+  }
+  #[test]
+  fn line_intersection_on_line_2() {
+    let a1 = (0.0, 0.0);
+    let a2 = (2.0, 0.0);
+    let b1 = (-1.0, -1.0);
+    let b2 = (0.0, 0.0);
+    let result = path_intersection(&a1, &a2, &b1, &b2);
+    assert_eq!(result, Some((0.0, 0.0)));
+  }
+
+  //
+  //
+  // POLY FACTORY TESTS
+  //
   #[test]
   fn poly_factory_triangle_right() {
     let result = poly_factory(3, 10, 10);
@@ -151,6 +283,11 @@ mod tests {
   fn dist_to_segment() {
     let result = distance_to_segment(&(0, 0), &(0, 2), &(2, 1));
     assert_eq!(result, 2.0);
+  }
+  #[test]
+  fn dist_to_segment_2() {
+    let result = distance_to_segment(&(0, 64), &(0, 0), &(1, 1));
+    assert_eq!(result, 1.0);
   }
   #[test]
   fn dist_to_segment_not() {
@@ -204,6 +341,18 @@ mod tests {
     ];
     let result = poly_contains(&polygon, &(0, 0), 0);
     assert_eq!(result, ContainsResult::Inside);
+  }
+  #[rustfmt::skip]
+  #[test]
+  fn is_0_0_outside_2by2_diamond() {
+    let polygon = vec![
+      (2, 1),
+      (1, 2),
+      (0, 1),
+      (1, 0)
+    ];
+    let result = poly_contains(&polygon, &(0, 0), 0);
+    assert_eq!(result, ContainsResult::Outside);
   }
 
   #[rustfmt::skip]

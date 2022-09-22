@@ -1,7 +1,7 @@
 use crate::{
   colors::add_color_set_pixel,
   debug::print_points,
-  maths::{poly_contains, poly_factory, ContainsResult},
+  maths::{circle_contains, poly_contains, poly_factory, ContainsResult},
   rect_ops::RectOpUnw,
 };
 
@@ -57,7 +57,21 @@ impl SpriteorPolyOp {
     //Loop a tile and for every index offset set the value returned by the poly_contains check.
     for tile_y in 0..tile_height {
       for tile_x in 0..tile_width {
-        let contains = poly_contains(&poly, &(tile_x, tile_y), self.border_thickness);
+        let p = (tile_x, tile_y);
+        let inside_circle = circle_contains(
+          &p,
+          &(tile_height / 2, tile_width / 2),
+          (tile_height / 2).max(tile_width / 2),
+          self.border_thickness,
+        );
+        let mut contains = ContainsResult::Outside;
+
+        if inside_circle == ContainsResult::Inside || inside_circle == ContainsResult::Border {
+          contains = poly_contains(&poly, &p, self.border_thickness);
+        }
+
+        println!("tx:{} ty:{}       {:?}", tile_x, tile_y, contains);
+
         if contains == ContainsResult::Outside {
           continue;
         }
@@ -68,10 +82,7 @@ impl SpriteorPolyOp {
         };
         for offset in &tile_index_offsets {
           let index = offset + tile_x as usize + (tile_y as usize * pixels_per_row as usize);
-          // println!(
-          //   "tx:{},ty:{}  o:{}  idx:{}  {:?}",
-          //   tile_x, tile_y, offset, idx, color
-          // );
+          println!("tx:{} ty:{}   t:{}   idx:{}", tile_x, tile_y, offset, index);
           add_color_set_pixel(values, &index, &color)
           // set_pixel(&mut quarter_pixels, &idx, &color);
         }

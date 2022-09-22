@@ -414,7 +414,7 @@ mod tests {
     let result = spriteor.finalize();
 
     let mut values = vec![0 as u8; 8 * 8 * 4];
-    let cross = vec![
+    let pixels = vec![
       0, 0, 0, 0, 0, 0, 0, 0,
       0, 1, 1, 1, 1, 1, 1, 0,
       0, 1, 1, 1, 1, 1, 1, 0,
@@ -424,7 +424,7 @@ mod tests {
       0, 1, 1, 1, 1, 1, 1, 0,
       0, 0, 0, 0, 0, 0, 0, 0,
     ];
-    modify_pixels(&mut values, &cross, &[200, 200, 200, 255]);
+    modify_pixels(&mut values, &pixels, &[200, 200, 200, 255]);
 
 
     print_matrix(result, 8, 2);
@@ -463,7 +463,7 @@ mod tests {
     let result = spriteor.finalize();
 
     let mut values = vec![0 as u8; 8 * 8 * 4];
-    let cross = vec![
+    let border = vec![
       0, 0, 0, 0, 0, 0, 0, 0,
       0, 1, 1, 1, 1, 1, 1, 0,
       0, 1, 1, 1, 1, 1, 1, 0,
@@ -473,7 +473,7 @@ mod tests {
       0, 1, 1, 1, 1, 1, 1, 0,
       0, 0, 0, 0, 0, 0, 0, 0,
     ];
-    modify_pixels(&mut values, &cross, &[200, 200, 200, 255]);
+    modify_pixels(&mut values, &border, &[200, 200, 200, 255]);
     let cross = vec![
       0, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 1, 1, 0, 0, 0,
