@@ -101,9 +101,9 @@ impl Spriteor {
     self.ops.push(operation);
   }
   pub fn new(settings: &SpriteorSettings) -> Spriteor {
-    if settings.width % 2 != 0 || settings.height % 2 != 0 {
-      panic!("Input width and height not divisble by 2.");
-    }
+    // if settings.width % 2 != 0 || settings.height % 2 != 0 {
+    //   panic!("Input width and height not divisble by 2.");
+    // }
     if settings.height < 8 || settings.height > 4096 || settings.width < 8 || settings.width > 4096
     {
       panic!("Invalid sizing, width and height must be in range [8, 4096].")
@@ -135,7 +135,10 @@ impl Spriteor {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::debug::{modify_pixels, pixels_to_values, print_matrix};
+  use crate::{
+    debug::{modify_pixels, pixels_to_values, print_matrix},
+    poly_ops::{HEXAGON_POLY, OCTAGON_POLY},
+  };
 
   #[test]
   fn background_color_test() {
@@ -420,14 +423,136 @@ mod tests {
       0, 0, 1, 1, 1, 1, 0, 0, //23
       0, 1, 1, 1, 1, 1, 1, 0, //31
       1, 1, 1, 1, 1, 1, 1, 1, //39
-      0, 0, 1, 1, 1, 1, 0, 0, //47
-      0, 0, 0, 1, 1, 0, 0, 0, //55
+      0, 0, 1, 1, 1, 1, 1, 0, //47
+      0, 0, 0, 1, 1, 1, 0, 0, //55
       0, 0, 0, 0, 1, 0, 0, 0, //63
     ];
     modify_pixels(&mut values, &pixels, &[200, 200, 200, 255]);
 
 
     print_matrix(result, 8, 2);
+    assert_eq!(
+      result,
+      &values
+    );
+  }
+
+  #[rustfmt::skip]
+  #[test]
+  fn default_poly_on_15x15() {
+    let size = 15 as u16;
+    let mut spriteor = Spriteor::new(&SpriteorSettings {
+      width: size,
+      height: size,
+      ..Default::default()
+    });
+    spriteor.add_operation(SpriteorOperation::SpriteorPolyOp(SpriteorPolyOp {
+      ..Default::default()
+    }));
+    let result = spriteor.finalize();
+
+    let mut values = vec![0 as u8; size as usize * size as usize * 4];
+    let pixels = vec![
+      0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,
+      0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,
+      0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,
+      0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,
+      0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,
+      0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,
+      0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,
+      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+      0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,
+      0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,
+      0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,
+      0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,
+      0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,
+      0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,
+      0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,
+    ];
+    modify_pixels(&mut values, &pixels, &[200, 200, 200, 255]);
+
+
+    print_matrix(result, size, 2);
+    assert_eq!(
+      result,
+      &values
+    );
+  }
+
+  #[rustfmt::skip]
+  #[test]
+  fn octagon_poly_on_16x16() {
+    let size = 16 as u16;
+    let mut spriteor = Spriteor::new(&SpriteorSettings {
+      width: size,
+      height: size,
+      ..Default::default()
+    });
+    spriteor.add_operation(SpriteorOperation::SpriteorPolyOp(SpriteorPolyOp {
+      polygon: OCTAGON_POLY.to_vec(),
+      ..Default::default()
+    }));
+    let result = spriteor.finalize();
+
+    let mut values = vec![0 as u8; size as usize * size as usize * 4];
+    let pixels = vec![
+      0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,
+      0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,
+      0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,
+      0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
+      0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,
+      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+      1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+      0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,
+      0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,
+      0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,
+      0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,
+      0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,
+    ];
+    modify_pixels(&mut values, &pixels, &[200, 200, 200, 255]);
+
+
+    print_matrix(result, size, 2);
+    assert_eq!(
+      result,
+      &values
+    );
+  }
+
+  #[rustfmt::skip]
+  #[test]
+  fn hexagon_poly_on_8x8() {
+    let size = 16 as u16;
+    let mut spriteor = Spriteor::new(&SpriteorSettings {
+      width: size,
+      height: size,
+      ..Default::default()
+    });
+    spriteor.add_operation(SpriteorOperation::SpriteorPolyOp(SpriteorPolyOp {
+      polygon: HEXAGON_POLY.to_vec(),
+      ..Default::default()
+    }));
+    let result = spriteor.finalize();
+
+    let mut values = vec![0 as u8; size as usize * size as usize * 4];
+    // let pixels = vec![
+    //   0,0,1,1,1,1,0,0,
+    //   0,0,1,1,1,1,0,0,
+    //   0,1,1,1,1,1,1,0,
+    //   1,1,1,1,1,1,1,1,
+    //   0,1,1,1,1,1,1,0,
+    //   0,0,1,1,1,1,0,0,
+    //   0,0,0,1,1,0,0,0,
+    //   0,0,0,0,1,0,0,0,
+    // ];
+    // modify_pixels(&mut values, &pixels, &[200, 200, 200, 255]);
+
+
+    print_matrix(result, size, 2);
     assert_eq!(
       result,
       &values

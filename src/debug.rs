@@ -24,7 +24,7 @@ use crate::maths::map_range;
 //   }
 // }
 
-pub(crate) fn print_points(prefix: &str, pts: &Vec<(u16, u16)>) {
+pub(crate) fn print_points(prefix: &str, pts: &Vec<(f32, f32)>) {
   let pre = if prefix.len() > 0 {
     format!("{}:  ", prefix)
   } else {

@@ -1,7 +1,4 @@
-use std::{
-  f32::consts::TAU,
-  ops::{Add, Div, Mul, Sub},
-};
+use std::ops::{Add, Div, Mul, Sub};
 
 pub(crate) fn xy_to_i(width: &u16, x: &u16, y: &u16) -> usize {
   (y * width + x) as usize
@@ -16,20 +13,16 @@ fn distance_f32(ax: f32, ay: f32, bx: f32, by: f32) -> f32 {
   ((ax - bx).powi(2) + (ay - by).powi(2)).sqrt()
 }
 
-fn distance_no_sqrt(a: &(u16, u16), b: &(u16, u16)) -> f32 {
-  (a.0 as f32 - b.0 as f32).powi(2) + (a.1 as f32 - b.1 as f32).powi(2)
+fn distance_no_sqrt(a: &(f32, f32), b: &(f32, f32)) -> f32 {
+  (a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)
 }
 
-fn distance_to_segment(a: &(u16, u16), b: &(u16, u16), p: &(u16, u16)) -> f32 {
+fn distance_to_segment(a: &(f32, f32), b: &(f32, f32), p: &(f32, f32)) -> f32 {
   let length = distance_no_sqrt(a, b);
   if length == 0.0 {
     //If a and b are the same point return distance p->a.
-    return distance_u16(a.0, a.1, p.0, p.1);
+    return distance_f32(a.0, a.1, p.0, p.1);
   }
-
-  let a = (a.0 as f32, a.1 as f32);
-  let b = (b.0 as f32, b.1 as f32);
-  let p = (p.0 as f32, p.1 as f32);
 
   let t = ((p.0 - a.0) * (b.0 - a.0) + (p.1 - a.1) * (b.1 - a.1)) as f32 / length;
   let t_clamped = 0.0_f32.max(1.0_f32.min(t));
@@ -40,51 +33,11 @@ fn distance_to_segment(a: &(u16, u16), b: &(u16, u16), p: &(u16, u16)) -> f32 {
   distance_f32(p.0 as f32, p.1 as f32, x.0, x.1)
 }
 
-pub(crate) fn poly_factory(vert_count: u8, x_radius: u16, y_radius: u16) -> Vec<(u16, u16)> {
-  let x = x_radius as f32;
-  let y = y_radius as f32;
-  let x_max = (x * 2.0) - 1.0;
-  let y_max = (y * 2.0) - 1.0;
-
-  // println!("x:{}, y:{}", x, y);
-  let radians_per_vert = TAU / vert_count as f32;
-  let mut pts: Vec<(u16, u16)> = Vec::new();
-  pts.reserve(vert_count as usize);
-
-  let mut rads: f32 = 0.0;
-  for _ in 0..vert_count {
-    pts.push((
-      (x + (x * rads.cos())).min(x_max).round() as u16,
-      (y + (y * rads.sin())).min(y_max).round() as u16,
-      // (x + (x * rads.cos())).round() as u16,
-      // (y + (y * rads.sin())).round() as u16,
-    ));
-    rads += radians_per_vert;
-  }
-
-  pts
-}
-
 #[derive(PartialEq, Debug)]
 pub(crate) enum ContainsResult {
   Inside,
   Outside,
   Border,
-}
-
-pub(crate) fn circle_contains(
-  p: &(u16, u16),
-  center: &(u16, u16),
-  radius: u16,
-  border_thickness: u8,
-) -> ContainsResult {
-  let distance = distance_u16(p.0, p.1, center.0, center.1);
-  let r = radius as f32;
-  match distance {
-    d if d > r => ContainsResult::Outside,
-    d if d <= r && d >= border_thickness as f32 => ContainsResult::Border,
-    _ => ContainsResult::Inside,
-  }
 }
 
 pub(crate) fn path_intersection(
@@ -115,11 +68,12 @@ pub(crate) fn path_intersection(
 }
 
 pub(crate) fn poly_contains(
-  polygon: &Vec<(u16, u16)>,
+  polygon: &Vec<(f32, f32)>,
   p: &(u16, u16),
   border_thickness: u8,
 ) -> ContainsResult {
-  if p.0 == polygon[0].0 && p.1 == polygon[0].1 {
+  let target = (p.0 as f32, p.1 as f32);
+  if target.0 == polygon[0].0 && target.1 == polygon[0].1 {
     //Point is on the edge, counts as inside.
     if border_thickness > 0 {
       return ContainsResult::Border;
@@ -127,18 +81,17 @@ pub(crate) fn poly_contains(
     return ContainsResult::Inside;
   }
   let origin = (-1.0, -1.0);
-  let target = (p.0 as f32, p.1 as f32);
 
   let mut intersections: usize = 0;
   let mut poly_point_intersections: usize = 0;
   let mut last_intersection_seg_index: usize = 0;
 
-  let mut seg_point_a = (polygon[0].0 as f32, polygon[0].1 as f32);
+  let mut seg_point_a = polygon[0];
 
   let len = polygon.len();
   for i in 1..len + 1 {
     let p_index = if i < len { i } else { 0 };
-    if p.0 == polygon[p_index].0 && p.1 == polygon[p_index].1 {
+    if target.0 == polygon[p_index].0 && target.1 == polygon[p_index].1 {
       //Point is on the edge, counts as inside.
       if border_thickness > 0 {
         return ContainsResult::Border;
@@ -183,7 +136,7 @@ pub(crate) fn poly_contains(
       let distance = distance_to_segment(
         &polygon[last_intersection_seg_index],
         &polygon[(last_intersection_seg_index + 1) % len],
-        p,
+        &target,
       );
       if distance < border_thickness as f32 {
         // println!("distance:{}", distance);
@@ -208,7 +161,7 @@ where
 
 #[cfg(test)]
 mod tests {
-  use crate::debug::print_points;
+  use crate::{debug::print_points, poly_ops::DIAMOND_POLY};
 
   use super::*;
 
@@ -262,61 +215,31 @@ mod tests {
 
   //
   //
-  // POLY FACTORY TESTS
-  //
-  #[test]
-  fn poly_factory_triangle_right() {
-    let result = poly_factory(3, 10, 10);
-    assert_eq!(result, vec![(19, 10), (5, 19), (5, 1)]);
-  }
-  #[test]
-  fn poly_factory_diamond() {
-    let result = poly_factory(4, 10, 10);
-    assert_eq!(result, vec![(19, 10), (10, 19), (0, 10), (10, 0)]);
-  }
-  #[test]
-  fn poly_factory_diamond_tall() {
-    let result = poly_factory(4, 10, 20);
-    assert_eq!(result, vec![(19, 20), (10, 39), (0, 20), (10, 0)]);
-  }
-  #[test]
-  fn poly_factory_diamond_wide() {
-    let result = poly_factory(4, 20, 10);
-    assert_eq!(result, vec![(39, 10), (20, 19), (0, 10), (20, 0)]);
-  }
-  #[test]
-  fn poly_factory_pentagon() {
-    let result = poly_factory(5, 10, 10);
-    assert_eq!(result, vec![(19, 10), (13, 19), (2, 16), (2, 4), (13, 0)]);
-  }
-
-  //
-  //
   //Distance to segment tests
   //
   #[test]
   fn dist_to_segment() {
-    let result = distance_to_segment(&(0, 0), &(0, 2), &(2, 1));
+    let result = distance_to_segment(&(0.0, 0.0), &(0.0, 2.0), &(2.0, 1.0));
     assert_eq!(result, 2.0);
   }
   #[test]
   fn dist_to_segment_2() {
-    let result = distance_to_segment(&(0, 64), &(0, 0), &(1, 1));
+    let result = distance_to_segment(&(0.0, 64.0), &(0.0, 0.0), &(1.0, 1.0));
     assert_eq!(result, 1.0);
   }
   #[test]
   fn dist_to_segment_not() {
-    let result = distance_to_segment(&(0, 0), &(5, 5), &(0, 5));
+    let result = distance_to_segment(&(0.0, 0.0), &(5.0, 5.0), &(0.0, 5.0));
     assert_ne!(result, 1.0);
   }
   #[test]
   fn dist_to_segment_diagonal_0() {
-    let result = distance_to_segment(&(0, 0), &(2, 2), &(1, 1));
+    let result = distance_to_segment(&(0.0, 0.0), &(2.0, 2.0), &(1.0, 1.0));
     assert_eq!(result, 0.0);
   }
   #[test]
   fn dist_to_segment_diagonal_1() {
-    let result = distance_to_segment(&(0, 0), &(2, 2), &(0, 2));
+    let result = distance_to_segment(&(0.0, 0.0), &(2.0, 2.0), &(0.0, 2.0));
     assert_eq!(result, 1.4142135);
   }
 
@@ -348,7 +271,7 @@ mod tests {
   #[rustfmt::skip]
   #[test]
   fn diamond_8by8_contains() {
-    let poly = poly_factory(4, 4, 4);
+    let poly = DIAMOND_POLY.to_vec();
     print_points(&"diamond", &poly);
     let pixels = vec![
       (0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0),
@@ -380,10 +303,10 @@ mod tests {
   #[test]
   fn is_0_0_in_2by2() {
     let polygon = vec![
-      (0, 0),
-      (2, 0),
-      (2, 2),
-      (0, 2)
+      (0.0, 0.0),
+      (2.0, 0.0),
+      (2.0, 2.0),
+      (0.0, 2.0)
     ];
     let result = poly_contains(&polygon, &(0, 0), 0);
     assert_eq!(result, ContainsResult::Inside);
@@ -392,10 +315,10 @@ mod tests {
   #[test]
   fn is_0_0_outside_2by2_diamond() {
     let polygon = vec![
-      (2, 1),
-      (1, 2),
-      (0, 1),
-      (1, 0)
+      (2.0, 1.0),
+      (1.0, 2.0),
+      (0.0, 1.0),
+      (1.0, 0.0)
     ];
     let result = poly_contains(&polygon, &(0, 0), 0);
     assert_eq!(result, ContainsResult::Outside);
@@ -405,10 +328,10 @@ mod tests {
   #[test]
   fn is_0_0_border_in_2by2() {
     let polygon = vec![
-      (0, 0),
-      (2, 0),
-      (2, 2),
-      (0, 2)
+      (0.0, 0.0),
+      (2.0, 0.0),
+      (2.0, 2.0),
+      (0.0, 2.0)
     ];
     let result = poly_contains(&polygon, &(0, 0), 1);
     assert_eq!(result, ContainsResult::Border);
@@ -417,10 +340,10 @@ mod tests {
   #[test]
   fn is_1_1_not_border_in_64by64() {
     let polygon = vec![
-      (0, 0),
-      (64, 0),
-      (64, 64),
-      (0, 64)
+      (0.0, 0.0),
+      (64.0, 0.0),
+      (64.0, 64.0),
+      (0.0, 64.0)
     ];
     let result = poly_contains(&polygon, &(1, 1), 1);
     assert_ne!(result, ContainsResult::Border);
@@ -429,10 +352,10 @@ mod tests {
   #[test]
   fn is_1_1_border_in_64by64() {
     let polygon = vec![
-      (0, 0),
-      (64, 0),
-      (64, 64),
-      (0, 64)
+      (0.0, 0.0),
+      (64.0, 0.0),
+      (64.0, 64.0),
+      (0.0, 64.0)
     ];
     let result = poly_contains(&polygon, &(1, 1), 2);
     assert_eq!(result, ContainsResult::Border);
@@ -442,10 +365,10 @@ mod tests {
   #[test]
   fn is_1_1_in_2by2() {
     let polygon = vec![
-      (0, 0),
-      (2, 0),
-      (2, 2),
-      (0, 2)
+      (0.0, 0.0),
+      (2.0, 0.0),
+      (2.0, 2.0),
+      (0.0, 2.0)
     ];
     let result = poly_contains(&polygon, &(1, 1), 0);
     assert_eq!(result, ContainsResult::Inside);
@@ -454,10 +377,10 @@ mod tests {
   #[test]
   fn is_1_3_not_in_2by2() {
     let polygon = vec![
-      (0, 0),
-      (2, 0),
-      (2, 2),
-      (0, 2)
+      (0.0, 0.0),
+      (2.0, 0.0),
+      (2.0, 2.0),
+      (0.0, 2.0)
     ];
     let result = poly_contains(&polygon, &(1, 3), 0);
     assert_eq!(result, ContainsResult::Outside);
